@@ -1,45 +1,47 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #include <time.h>
 
 #include "logmod.h"
 
-typedef void (*logmod_logger_lock)(int should_lock);
-
-struct logmod_logger_options {
-    char *logfile;
-    char *buffer;
-    int quiet;
+#define __BLANK
+struct _logmod {
+    __LOGMOD_METADATA(__BLANK);
 };
 
 struct _logmod_logger {
-    __LOGMOD_METADATA;
-    const char *context_id;
-    logmod_logger_lock lock;
-    struct logmod_logger_options options;
+    __LOGMOD_LOGGER_METADATA(__BLANK);
 };
 
-struct logmod {
-    const char *application_id;
-    struct _logmod_logger *loggers;
-    size_t size;
-};
+#undef __LOGMOD_BLANK
 
-struct logmod *
-logmod_init(const char *const application_id)
+logmod_err
+logmod_init(struct logmod *logmod,
+            const char *const application_id,
+            struct logmod_logger table[],
+            unsigned length)
 {
-    struct logmod *new_logmod = calloc(1, sizeof *new_logmod);
-    if (application_id) new_logmod->application_id = application_id;
-    return new_logmod;
+    struct _logmod *_logmod = (struct _logmod *)logmod;
+    if (table == NULL) {
+        fputs("Error: Missing table at logmod_init()", stderr);
+        return LOGMOD_BAD_PARAMETER;
+    }
+    memset(_logmod, 0, sizeof *_logmod);
+    if (application_id) logmod->application_id = application_id;
+    _logmod->loggers = table;
+    _logmod->real_length = length;
+    return LOGMOD_OK;
 }
 
-void
+logmod_err
 logmod_cleanup(struct logmod *logmod)
 {
-    if (logmod->loggers) free(logmod->loggers);
-    free(logmod);
+    struct _logmod *_logmod = (struct _logmod *)logmod;
+    memset(_logmod->loggers, 0,
+           _logmod->real_length * sizeof(struct logmod_logger));
+    memset(_logmod, 0, sizeof *_logmod);
+    return LOGMOD_OK;
 }
 
 static void
@@ -50,40 +52,40 @@ _logmod_lock_noop(int _)
 struct logmod_logger *
 logmod_logger_get(struct logmod *logmod, const char *const context_id)
 {
-    void *tmp;
-    size_t i;
+    struct _logmod *_logmod = (struct _logmod *)logmod;
+    unsigned i;
 
-    for (i = 0; i < logmod->size; ++i) {
-        if (strcmp(logmod->loggers[i].context_id, context_id) != 0) continue;
-        return (struct logmod_logger *)&logmod->loggers[i];
+    for (i = 0; i < _logmod->length; ++i) {
+        if (strcmp(_logmod->loggers[i].context_id, context_id) != 0) continue;
+        return (struct logmod_logger *)&_logmod->loggers[i];
     }
 
-    tmp =
-        realloc(logmod->loggers, sizeof *logmod->loggers * (logmod->size + 1));
-    if (!tmp) return NULL;
+    if ((_logmod->length + 1) >= _logmod->real_length) return NULL;
 
-    logmod->loggers = tmp;
-    memset(&logmod->loggers[logmod->size], 0, sizeof *logmod->loggers);
-    logmod->loggers[logmod->size].context_id = context_id;
-    logmod->loggers[logmod->size].lock = _logmod_lock_noop;
-    return (struct logmod_logger *)&logmod->loggers[logmod->size++];
+    memset(&_logmod->loggers[_logmod->length], 0, sizeof *_logmod->loggers);
+    _logmod->loggers[_logmod->length].context_id = context_id;
+    _logmod->loggers[_logmod->length].lock =
+        (const void (*)(int))_logmod_lock_noop;
+    return (struct logmod_logger *)&logmod->loggers[_logmod->length++];
 }
 
-void
-_logmod_log(struct logmod_logger *_logger, const char *fmt, ...)
+logmod_err
+_logmod_log(struct logmod_logger *logger, const char *fmt, ...)
 {
-    struct _logmod_logger *logger = (struct _logmod_logger *)_logger;
+    struct _logmod_logger *_logger = (struct _logmod_logger *)logger;
     const char *color, *type;
-    struct tm *timeInfo;
-    time_t timeRaw;
+    struct tm *time_info;
+    time_t time_raw;
     va_list args;
+
+    logmod_err code = LOGMOD_OK;
 
     va_start(args, fmt);
 
-    time(&timeRaw);
-    timeInfo = localtime(&timeRaw);
+    time(&time_raw);
+    time_info = localtime(&time_raw);
 
-    switch (logger->level) {
+    switch (_logger->level) {
     case LOGMOD_LEVEL_TRACE:
         color = "[94m";
         type = "TRACE";
@@ -110,24 +112,28 @@ _logmod_log(struct logmod_logger *_logger, const char *fmt, ...)
         break;
     }
 
-    logger->lock(1);
+    _logger->lock(1);
     fprintf(stderr,
-            "%02d:%02d:%02d \x1b%s%s\x1b[0m %s:%d: ", timeInfo->tm_hour,
-            timeInfo->tm_min, timeInfo->tm_sec, color, type, logger->filename,
-            logger->line);
+            "%02d:%02d:%02d \x1b%s%s\x1b[0m %s:%d: ", time_info->tm_hour,
+            time_info->tm_min, time_info->tm_sec, color, type,
+            _logger->filename, _logger->line);
     vfprintf(stderr, fmt, args), putc('\n', stderr);
 
-    if (logger->options.logfile && *logger->options.logfile) {
-        FILE *pFile = fopen(logger->options.logfile, "a+");
-        if (!pFile) goto _unlock;
+    if (_logger->options.logfile && *_logger->options.logfile) {
+        FILE *file = fopen(_logger->options.logfile, "a+");
+        if (!file) {
+            code = LOGMOD_MISSING_FILE;
+            goto _unlock;
+        }
 
-        fprintf(pFile, "%02d:%02d:%02d %s %s:%d: ", timeInfo->tm_hour,
-                timeInfo->tm_min, timeInfo->tm_sec, type, logger->filename,
-                logger->line);
-        vfprintf(pFile, fmt, args), putc('\n', stderr);
-        fclose(pFile);
+        fprintf(file, "%02d:%02d:%02d %s %s:%d: ", time_info->tm_hour,
+                time_info->tm_min, time_info->tm_sec, type, _logger->filename,
+                _logger->line);
+        vfprintf(file, fmt, args), putc('\n', file);
+        fclose(file);
     }
 _unlock:
-    logger->lock(0);
+    _logger->lock(0);
     va_end(args);
+    return code;
 }
