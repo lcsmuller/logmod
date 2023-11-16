@@ -4,7 +4,7 @@ OBJS = $(TOP)/logmod.o
 
 CFLAGS = -Wall -std=c89 -Wpedantic -I$(TOP)
 
-TESTS = test1
+TESTS = test
 
 all: $(TESTS)
 

@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.PRE.h": "csharp",
+        "greatest.h": "c",
+        "logmod.h": "c"
+    }
+}

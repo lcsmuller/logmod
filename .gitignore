@@ -1,0 +1,11 @@
+# Ignore all
+*
+# But these
+!.gitignore
+!.vscode/
+!.vscode/settings.json
+!test/
+!LICENSE
+!logmod.c
+!logmod.h
+!Makefile
