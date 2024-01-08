@@ -20,20 +20,6 @@ typedef enum {
     LOGMOD_MISSING_FILE = -2
 } logmod_err;
 
-#define __LOGMOD_METADATA(_prefix)                                            \
-    _prefix char *application_id;                                             \
-    _prefix struct logmod_logger *loggers;                                    \
-    _prefix unsigned length;                                                  \
-    _prefix unsigned real_length
-
-#define __LOGMOD_LOGGER_METADATA(_prefix)                                     \
-    _prefix char *filename;                                                   \
-    _prefix int line;                                                         \
-    _prefix int level;                                                        \
-    _prefix char *context_id;                                                 \
-    _prefix void (*lock)(int should_lock);                                    \
-    _prefix struct logmod_logger_options options
-
 struct logmod_logger_options {
     char *logfile;
     char *buffer;
@@ -41,11 +27,19 @@ struct logmod_logger_options {
 };
 
 struct logmod_logger {
-    __LOGMOD_LOGGER_METADATA(const);
+    char *filename;
+    int line;
+    int level;
+    const char *context_id;
+    void (*lock)(int should_lock);
+    struct logmod_logger_options options;
 };
 
 struct logmod {
-    __LOGMOD_METADATA(const);
+    const char *application_id;
+    struct logmod_logger *loggers;
+    unsigned length;
+    unsigned real_length;
 };
 
 #define LOGMOD_TRACE(log) _LOGMOD_LOG(LOGMOD_LEVEL_TRACE, log)
@@ -68,6 +62,16 @@ logmod_err logmod_init(struct logmod *logmod,
                        unsigned length);
 
 logmod_err logmod_cleanup(struct logmod *logmod);
+
+logmod_err logmod_logger_set_lock(struct logmod_logger *logger,
+                                  void (*lock)(int should_lock));
+
+logmod_err logmod_logger_set_options(struct logmod_logger *logger,
+                                     struct logmod_logger_options options);
+
+logmod_err logmod_logger_set_quiet(struct logmod_logger *logger, int quiet);
+
+logmod_err logmod_logger_set_logfile(struct logmod_logger *logger, char *logfile);
 
 struct logmod_logger *logmod_logger_get(struct logmod *logmod,
                                         const char *const context_id);
