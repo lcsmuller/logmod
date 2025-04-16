@@ -49,12 +49,12 @@ The logger is stored in the `LOGMOD_LOGGER` variable, which is a macro created t
 To log messages with different severity levels, use provided macros:
 
 ```c
-LOGMOD_TRACE(("This is a trace message"));
-LOGMOD_DEBUG(("This is a debug message"));
-LOGMOD_INFO(("This is an info message"));
-LOGMOD_WARN(("This is a warning message"));
-LOGMOD_ERROR(("This is an error message"));
-LOGMOD_FATAL(("This is a fatal message"));
+LOGMOD_TRACE((LOGMOD_LOGGER, "This is a trace message"));
+LOGMOD_DEBUG((LOGMOD_LOGGER, "This is a debug message"));
+LOGMOD_INFO((LOGMOD_LOGGER, "This is an info message"));
+LOGMOD_WARN((LOGMOD_LOGGER, "This is a warning message"));
+LOGMOD_ERROR((LOGMOD_LOGGER, "This is an error message"));
+LOGMOD_FATAL((LOGMOD_LOGGER, "This is a fatal message"));
 ```
 
 #### Using `printf` Formatters
@@ -65,9 +65,9 @@ LogMod supports formatted logging messages similar to `printf`. Here are some ex
 int value = 42;
 const char *name = "example";
 
-LOGMOD_INFO(("Integer value: %d", value));
-LOGMOD_DEBUG(("String value: %s", name));
-LOGMOD_WARN(("Combined values: %s = %d", name, value));
+LOGMOD_INFO((LOGMOD_LOGGER, "Integer value: %d", value));
+LOGMOD_DEBUG((LOGMOD_LOGGER, "String value: %s", name));
+LOGMOD_WARN((LOGMOD_LOGGER, "Combined values: %s = %d", name, value));
 ```
 
 These macros allow you to include variable data in your log messages, making them more informative and useful for debugging.
@@ -152,12 +152,12 @@ Returns `LOGMOD_OK` on success.
 ### `logmod_logger_set_logfile`
 
 ```c
-logmod_err logmod_logger_set_logfile(struct logmod_logger *logger, char *logfile);
+logmod_err logmod_logger_set_logfile(struct logmod_logger *logger, FILE *logfile);
 ```
 
 Sets the logfile for the logger.
 - `logger`: Pointer to the logger structure.
-- `logfile`: Logfile path string.
+- `logfile`: Logfile pointer.
 Returns `LOGMOD_OK` on success.
 
 ### `_logmod_log`
