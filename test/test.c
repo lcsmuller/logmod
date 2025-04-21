@@ -1,25 +1,58 @@
+#define _POSIX_SOURCE
 #include "../logmod.h"
 #include "greatest.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 
-#define TABLE_SIZE 5
+#define TABLE_LENGTH 5
+#define LL           LOGMOD_LOGGER
+
+enum { LOGMOD_LEVEL_HTTP = LOGMOD_LEVEL_CUSTOM, LOGMOD_LEVEL_TESTMODE };
+
+#define __COLOR(_color, _visibility)                                          \
+    LOGMOD_COLOR_##_color + LOGMOD_VISIBILITY_##_visibility
+static const struct logmod_label custom_labels[] = {
+    /*[LOGMOD_LEVEL_HTTP]:*/ { "HTTP", __COLOR(BLUE, FOREGROUND), 0 },
+    /*[LOGMOD_LEVEL_TEST]:*/ { "TEST", __COLOR(MAGENTA, INTENSITY), 0 }
+};
+#undef __COLOR
+
+static int callback_was_called = 0;
+static const char *last_message = NULL;
+static const char *last_label = NULL;
+
+static logmod_err
+test_callback(const struct logmod_logger *logger,
+              const struct logmod_label *const label,
+              const char *fmt,
+              va_list args)
+{
+    callback_was_called = 1;
+    last_label = label->name;
+    last_message = fmt;
+    if (logger->options.logfile) {
+        vfprintf(logger->options.logfile, fmt, args);
+    }
+    return LOGMOD_OK;
+}
 
 TEST
 should_initialize_application(void)
 {
     static const char *const application_id = "APPLICATION_A";
-    struct logmod_logger table[TABLE_SIZE];
+    struct logmod_logger table[TABLE_LENGTH];
     struct logmod logmod;
 
     logmod_err code = logmod_init(&logmod, application_id, table,
                                   sizeof(table) / sizeof *table);
-    ASSERT_EQ(code, LOGMOD_OK);
-    ASSERT_EQ(logmod.application_id, application_id);
-    ASSERT_EQ(logmod.loggers, table);
-    ASSERT_EQ(logmod.length, 0);
-    ASSERT_EQ(logmod.real_length, TABLE_SIZE);
+    ASSERT_EQ(LOGMOD_OK, code);
+    ASSERT_EQ(application_id, logmod.application_id);
+    ASSERT_EQ(table, logmod.loggers);
+    ASSERT_EQ(0, logmod.length);
+    ASSERT_EQ(TABLE_LENGTH, logmod.real_length);
 
     PASS();
 }
@@ -29,13 +62,13 @@ should_initialize_context(void)
 {
     static const char *const application_id = "APPLICATION_A";
     static const char *const context_id = "MODULE_A";
-    struct logmod_logger *LOGMOD_LOGGER, table[TABLE_SIZE];
+    struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
 
     logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
-    LOGMOD_LOGGER = logmod_logger_get(&logmod, context_id);
-    ASSERT_EQ(LOGMOD_LOGGER, &table[0]);
-    ASSERT_EQ(logmod.length, 1);
+    logger = logmod_get_logger(&logmod, context_id);
+    ASSERT_EQ((void *)&table[0], logger);
+    ASSERT_EQ(1, logmod.length);
 
     PASS();
 }
@@ -43,8 +76,9 @@ should_initialize_context(void)
 /* Custom lock function for testing */
 static int lock_was_called = 0;
 static void
-test_lock_function(int should_lock)
+test_lock_function(const struct logmod_logger *logger, int should_lock)
 {
+    (void)logger;
     lock_was_called = should_lock ? 1 : 0;
 }
 
@@ -53,42 +87,41 @@ should_set_logger_options(void)
 {
     static const char *const application_id = "APPLICATION_A";
     static const char *const context_id = "MODULE_A";
-    struct logmod_logger *LOGMOD_LOGGER, table[TABLE_SIZE];
+    struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
     struct logmod_logger_options options = { 0 };
     FILE *fp = tmpfile();
     logmod_err code;
 
-    /* Initialize logger */
     logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
-    LOGMOD_LOGGER = logmod_logger_get(&logmod, context_id);
-    ASSERT_EQ(logmod.length, 1);
+    logger = logmod_get_logger(&logmod, context_id);
+    ASSERT_EQ(1, logmod.length);
 
-    /* Set logger options */
     options.quiet = 1;
     options.color = 1;
     options.logfile = fp;
-    code = logmod_logger_set_options(LOGMOD_LOGGER, options);
-    ASSERT_EQ(code, LOGMOD_OK);
-    ASSERT_EQ(LOGMOD_LOGGER->options.quiet, 1);
-    ASSERT_EQ(LOGMOD_LOGGER->options.color, 1);
-    ASSERT_EQ(LOGMOD_LOGGER->options.logfile, fp);
+    code = logmod_logger_set_options(logger, options);
+    ASSERT_EQ(LOGMOD_OK, code);
+    ASSERT_EQ(1, logger->options.quiet);
+    ASSERT_EQ(1, logger->options.color);
+    ASSERT_EQ(fp, logger->options.logfile);
 
-    /* Test set_quiet function */
-    code = logmod_logger_set_quiet(LOGMOD_LOGGER, 0);
-    ASSERT_EQ(code, LOGMOD_OK);
-    ASSERT_EQ(LOGMOD_LOGGER->options.quiet, 0);
+    code = logmod_logger_set_quiet(logger, 0);
+    ASSERT_EQ(LOGMOD_OK, code);
+    ASSERT_EQ(0, logger->options.quiet);
 
-    /* Test set_logfile function */
+    code = logmod_logger_set_color(logger, 0);
+    ASSERT_EQ(LOGMOD_OK, code);
+    ASSERT_EQ(0, logger->options.color);
+
     fp = tmpfile();
-    code = logmod_logger_set_logfile(LOGMOD_LOGGER, fp);
-    ASSERT_EQ(code, LOGMOD_OK);
-    ASSERT_EQ(LOGMOD_LOGGER->options.logfile, fp);
+    code = logmod_logger_set_logfile(logger, fp);
+    ASSERT_EQ(LOGMOD_OK, code);
+    ASSERT_EQ(fp, logger->options.logfile);
 
-    /* Test set_lock function */
-    code = logmod_logger_set_lock(LOGMOD_LOGGER, test_lock_function);
-    ASSERT_EQ(code, LOGMOD_OK);
-    ASSERT_EQ(LOGMOD_LOGGER->lock, test_lock_function);
+    code = logmod_set_lock(&logmod, test_lock_function);
+    ASSERT_EQ(LOGMOD_OK, code);
+    ASSERT_EQ(test_lock_function, logmod.lock);
 
     PASS();
 }
@@ -98,31 +131,33 @@ should_log_message(void)
 {
     static const char *const application_id = "APPLICATION_A";
     static const char *const context_id = "MODULE_A";
-    struct logmod_logger *LOGMOD_LOGGER, table[TABLE_SIZE];
+    struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
 
-    /* Initialize logger */
     logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
-    LOGMOD_LOGGER = logmod_logger_get(&logmod, context_id);
+    logger = logmod_get_logger(&logmod, context_id);
 
     /* Test logging without a file - should not fail */
     lock_was_called = 0;
-    logmod_logger_set_lock(LOGMOD_LOGGER, test_lock_function);
-    logmod_logger_set_quiet(LOGMOD_LOGGER, 1);
+    logmod_set_lock(&logmod, test_lock_function);
+    logmod_logger_set_callback(logger, custom_labels,
+                               sizeof(custom_labels) / sizeof *custom_labels,
+                               test_callback);
+    logmod_logger_set_quiet(logger, 1);
 
     /* Test that different log levels can be used */
-    LOGMOD_DEBUG((LOGMOD_LOGGER, "Debug message"));
-    ASSERT_EQ(lock_was_called, 0); /* Lock should be released after logging */
-    ASSERT_EQ(LOGMOD_LOGGER->level, LOGMOD_LEVEL_DEBUG);
+    logmod_nlog(DEBUG, logger, ("Debug message"), 0);
+    ASSERT_EQ(0, lock_was_called); /* Lock should be released after logging */
+    ASSERT_STR_EQ("DEBUG", last_label);
 
-    LOGMOD_INFO((LOGMOD_LOGGER, "Info message"));
-    ASSERT_EQ(LOGMOD_LOGGER->level, LOGMOD_LEVEL_INFO);
+    logmod_nlog(INFO, logger, ("Info message"), 0);
+    ASSERT_STR_EQ("INFO", last_label);
 
-    LOGMOD_WARN((LOGMOD_LOGGER, "Warning message"));
-    ASSERT_EQ(LOGMOD_LOGGER->level, LOGMOD_LEVEL_WARN);
+    logmod_nlog(WARN, logger, ("Warning message"), 0);
+    ASSERT_STR_EQ("WARN", last_label);
 
-    LOGMOD_ERROR((LOGMOD_LOGGER, "Error message"));
-    ASSERT_EQ(LOGMOD_LOGGER->level, LOGMOD_LEVEL_ERROR);
+    logmod_nlog(ERROR, logger, ("Error message"), 0);
+    ASSERT_STR_EQ("ERROR", last_label);
 
     PASS();
 }
@@ -132,29 +167,25 @@ should_log_to_file(void)
 {
     static const char *const application_id = "APPLICATION_A";
     static const char *const context_id = "MODULE_A";
-    struct logmod_logger *LOGMOD_LOGGER, table[TABLE_SIZE];
+    struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
     FILE *fp = tmpfile();
     char buffer[256];
     size_t bytes_read;
 
-    /* Initialize logger */
     logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
-    LOGMOD_LOGGER = logmod_logger_get(&logmod, context_id);
+    logger = logmod_get_logger(&logmod, context_id);
 
-    /* Configure for logging to file */
-    logmod_logger_set_logfile(LOGMOD_LOGGER, fp);
-    logmod_logger_set_quiet(LOGMOD_LOGGER, 1);
+    logmod_logger_set_logfile(logger, fp);
+    logmod_logger_set_quiet(logger, 1);
 
-    /* Log a test message */
-    LOGMOD_INFO((LOGMOD_LOGGER, "Test log message to file"));
+    logmod_nlog(INFO, logger, ("Test log message to file"), 0);
 
     rewind(fp);
     bytes_read = fread(buffer, 1, sizeof(buffer) - 1, fp);
     buffer[bytes_read] = '\0';
 
-    /* Verify log content contains our message */
-    ASSERT_NEQ(strstr(buffer, "Test log message to file"), NULL);
+    ASSERT_NEQ(NULL, strstr(buffer, "Test log message to file"));
 
     PASS();
 }
@@ -166,34 +197,30 @@ should_format_log_message(void)
     static const char *const context_id = "MODULE_A";
     static const char *const test_string = "formatted";
     static const int test_value = 42;
-    struct logmod_logger *LOGMOD_LOGGER, table[TABLE_SIZE];
+    struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
     char buffer[256];
     size_t bytes_read;
     FILE *fp = tmpfile();
 
-    /* Initialize logger */
     logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
-    LOGMOD_LOGGER = logmod_logger_get(&logmod, context_id);
+    logger = logmod_get_logger(&logmod, context_id);
 
-    /* Configure for logging to file */
-    logmod_logger_set_logfile(LOGMOD_LOGGER, fp);
-    logmod_logger_set_quiet(LOGMOD_LOGGER, 1);
+    logmod_logger_set_logfile(logger, fp);
+    logmod_logger_set_quiet(logger, 1);
 
-    /* Log formatted messages */
-    LOGMOD_INFO((LOGMOD_LOGGER, "Integer value: %d", test_value));
-    LOGMOD_INFO((LOGMOD_LOGGER, "String value: %s", test_string));
-    LOGMOD_INFO(
-        (LOGMOD_LOGGER, "Combined values: %s = %d", test_string, test_value));
+    logmod_nlog(INFO, logger, ("Integer value: %d", test_value), 1);
+    logmod_nlog(INFO, logger, ("String value: %s", test_string), 1);
+    logmod_nlog(INFO, logger,
+                ("Combined values: %s = %d", test_string, test_value), 2);
 
     rewind(fp);
     bytes_read = fread(buffer, 1, sizeof(buffer) - 1, fp);
     buffer[bytes_read] = '\0';
 
-    /* Verify log content contains our formatted messages */
-    ASSERT_NEQ(strstr(buffer, "Integer value: 42"), NULL);
-    ASSERT_NEQ(strstr(buffer, "String value: formatted"), NULL);
-    ASSERT_NEQ(strstr(buffer, "Combined values: formatted = 42"), NULL);
+    ASSERT_NEQ(NULL, strstr(buffer, "Integer value: 42"));
+    ASSERT_NEQ(NULL, strstr(buffer, "String value: formatted"));
+    ASSERT_NEQ(NULL, strstr(buffer, "Combined values: formatted = 42"));
 
     PASS();
 }
@@ -202,26 +229,291 @@ TEST
 should_cleanup_logmod(void)
 {
     static const char *const application_id = "APPLICATION_A";
-    struct logmod_logger table[TABLE_SIZE];
+    struct logmod_logger table[TABLE_LENGTH];
     struct logmod logmod;
     logmod_err code;
     unsigned i;
 
-    /* Initialize and then clean up */
     logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
     code = logmod_cleanup(&logmod);
 
-    /* Verify cleanup success */
-    ASSERT_EQ(code, LOGMOD_OK);
-    ASSERT_EQ(logmod.application_id, NULL);
-    ASSERT_EQ(logmod.loggers, NULL);
-    ASSERT_EQ(logmod.length, 0);
-    ASSERT_EQ(logmod.real_length, 0);
+    ASSERT_EQ(LOGMOD_OK, code);
+    ASSERT_EQ(NULL, logmod.application_id);
+    ASSERT_EQ(NULL, logmod.loggers);
+    ASSERT_EQ(0, logmod.length);
+    ASSERT_EQ(0, logmod.real_length);
 
-    /* Verify logger table is zeroed */
-    for (i = 0; i < TABLE_SIZE; i++) {
-        ASSERT_EQ(table[i].context_id, NULL);
+    for (i = 0; i < TABLE_LENGTH; i++) {
+        ASSERT_EQ(NULL, table[i].context_id);
     }
+
+    PASS();
+}
+
+TEST
+should_log_with_custom_levels(void)
+{
+    static const char *const application_id = "APPLICATION_A";
+    static const char *const context_id = "MODULE_A";
+    struct logmod_logger table[TABLE_LENGTH], *logger;
+    struct logmod logmod;
+    FILE *fp = tmpfile();
+    char buffer[256];
+    size_t bytes_read;
+
+    logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
+    logger = logmod_get_logger(&logmod, context_id);
+
+    logmod_logger_set_logfile(logger, fp);
+    logmod_logger_set_quiet(logger, 1);
+    logmod_logger_set_callback(logger, custom_labels,
+                               sizeof(custom_labels) / sizeof *custom_labels,
+                               test_callback);
+
+    callback_was_called = 0;
+    last_label = NULL;
+    last_message = NULL;
+
+    logmod_nlog(HTTP, logger,
+                ("[%s] HTTP request received",
+                 logmod_logger_get_label(logger, LOGMOD_LEVEL_HTTP)->name),
+                1);
+    ASSERT_EQ(1, callback_was_called);
+    ASSERT_STR_EQ("HTTP", last_label);
+    ASSERT_STR_EQ("[%s] HTTP request received", last_message);
+
+    rewind(fp);
+    bytes_read = fread(buffer, 1, sizeof(buffer) - 1, fp);
+    buffer[bytes_read] = '\0';
+    ASSERT_NEQ(NULL, strstr(buffer, "HTTP"));
+    ASSERT_NEQ(NULL, strstr(buffer, "HTTP request received"));
+
+    callback_was_called = 0;
+    last_label = NULL;
+    last_message = NULL;
+
+    logmod_nlog(TESTMODE, logger,
+                ("[%s] Test mode activated",
+                 logmod_logger_get_label(logger, LOGMOD_LEVEL_TESTMODE)->name),
+                1);
+    ASSERT_EQ(1, callback_was_called);
+    ASSERT_STR_EQ("TEST", last_label);
+    ASSERT_STR_EQ("[%s] Test mode activated", last_message);
+
+    rewind(fp);
+    bytes_read = fread(buffer, 1, sizeof(buffer) - 1, fp);
+    buffer[bytes_read] = '\0';
+    ASSERT_NEQ(NULL, strstr(buffer, "TEST"));
+    ASSERT_NEQ(NULL, strstr(buffer, "Test mode activated"));
+
+    PASS();
+}
+
+TEST
+should_get_correct_level_labels(void)
+{
+    static const char *const application_id = "APPLICATION_A";
+    static const char *const context_id = "MODULE_A";
+    struct logmod_logger table[TABLE_LENGTH], *logger;
+    struct logmod logmod;
+    const struct logmod_label *label;
+
+    logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
+    logger = logmod_get_logger(&logmod, context_id);
+
+    label = logmod_logger_get_label(logger, LOGMOD_LEVEL_DEBUG);
+    ASSERT_STR_EQ("DEBUG", label->name);
+
+    label = logmod_logger_get_label(logger, LOGMOD_LEVEL_INFO);
+    ASSERT_STR_EQ("INFO", label->name);
+
+    label = logmod_logger_get_label(logger, LOGMOD_LEVEL_ERROR);
+    ASSERT_STR_EQ("ERROR", label->name);
+
+    logmod_logger_set_callback(logger, custom_labels,
+                               sizeof(custom_labels) / sizeof *custom_labels,
+                               test_callback);
+
+    label = logmod_logger_get_label(logger, LOGMOD_LEVEL_HTTP);
+    ASSERT_STR_EQ("HTTP", label->name);
+
+    label = logmod_logger_get_label(logger, LOGMOD_LEVEL_TESTMODE);
+    ASSERT_STR_EQ("TEST", label->name);
+
+    PASS();
+}
+
+TEST
+should_get_level_by_label_name(void)
+{
+    static const char *const application_id = "APPLICATION_A";
+    static const char *const context_id = "MODULE_A";
+    struct logmod_logger table[TABLE_LENGTH], *logger;
+    struct logmod logmod;
+    long level;
+
+    logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
+    logger = logmod_get_logger(&logmod, context_id);
+
+    level = logmod_logger_get_level(logger, "DEBUG");
+    ASSERT_EQ(LOGMOD_LEVEL_DEBUG, level);
+
+    level = logmod_logger_get_level(logger, "INFO");
+    ASSERT_EQ(LOGMOD_LEVEL_INFO, level);
+
+    level = logmod_logger_get_level(logger, "ERROR");
+    ASSERT_EQ(LOGMOD_LEVEL_ERROR, level);
+
+    logmod_logger_set_callback(logger, custom_labels,
+                               sizeof(custom_labels) / sizeof *custom_labels,
+                               test_callback);
+
+    level = logmod_logger_get_level(logger, "HTTP");
+    ASSERT_EQ(LOGMOD_LEVEL_HTTP, level);
+
+    level = logmod_logger_get_level(logger, "TEST");
+    ASSERT_EQ(LOGMOD_LEVEL_TESTMODE, level);
+
+    level = logmod_logger_get_level(logger, "NONEXISTENT");
+    ASSERT_EQ(-1, level);
+
+    freopen("/dev/null", "w", stderr); /* disable stderr */
+    level = logmod_logger_get_level(NULL, "INFO");
+    ASSERT_EQ(-2, level);
+
+    level = logmod_logger_get_level(logger, NULL);
+    ASSERT_EQ(-2, level);
+    freopen("/dev/tty", "w", stderr); /* restore stderr */
+
+    PASS();
+}
+
+TEST
+should_encode_ansi_string(void)
+{
+    static const char *const application_id = "APPLICATION_A";
+    static const char *const test_string = "test string";
+    struct logmod_logger table[TABLE_LENGTH], *logger;
+    struct logmod logmod;
+    const char *result;
+    char buffer[100];
+    int style, color;
+
+    logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
+    logger = logmod_get_logger(&logmod, "MODULE_A");
+    logmod_logger_set_color(logger, 1);
+
+    result = logmod_encode(logger, test_string, RED, BOLD, FOREGROUND);
+    ASSERT_NEQ(NULL, result);
+    ASSERT_NEQ(test_string, result);
+
+    ASSERT_EQ(3, sscanf(result, "\x1b[%d;%dm%[^\x1b]\x1b[0m", &style, &color,
+                        buffer));
+    ASSERT_STR_EQm(buffer, test_string, buffer);
+    ASSERT_EQ(LOGMOD_STYLE_BOLD, style);
+    ASSERT_EQ(LOGMOD_COLOR_RED + LOGMOD_VISIBILITY_FOREGROUND, color);
+
+    PASS();
+}
+
+TEST
+should_return_original_string_when_color_disabled(void)
+{
+    static const char *const application_id = "APPLICATION_A";
+    static const char *const test_string = "test string";
+    struct logmod_logger table[TABLE_LENGTH], *logger;
+    struct logmod logmod;
+    const char *result;
+
+    logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
+    logger = logmod_get_logger(&logmod, "MODULE_A");
+    logmod_logger_set_color(logger, 0);
+
+    result = logmod_encode(logger, test_string, RED, BOLD, FOREGROUND);
+
+    ASSERT_MEM_EQm(result, test_string, result, strlen(test_string) + 1);
+
+    PASS();
+}
+
+TEST
+should_handle_different_ansi_visibilities(void)
+{
+    static const char *const application_id = "APPLICATION_A";
+    static const char *const test_string = "test string";
+    struct logmod_logger table[TABLE_LENGTH], *logger;
+    struct logmod logmod;
+    const char *result;
+
+    logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
+    logger = logmod_get_logger(&logmod, "MODULE_A");
+    logmod_logger_set_color(logger, 1);
+
+    result = logmod_encode(logger, test_string, GREEN, REGULAR, FOREGROUND);
+    ASSERT_NEQ(NULL, result);
+    ASSERT_NEQ(NULL, strstr(result, "\x1b[0;32m"));
+
+    result = logmod_encode(logger, test_string, BLUE, REGULAR, BACKGROUND);
+    ASSERT_NEQ(NULL, result);
+    ASSERT_NEQ(NULL, strstr(result, "\x1b[0;44m"));
+
+    result = logmod_encode(logger, test_string, RED, REGULAR, INTENSITY);
+    ASSERT_NEQ(NULL, result);
+    ASSERT_NEQ(NULL, strstr(result, "\x1b[0;91m"));
+
+    PASS();
+}
+
+TEST
+should_handle_different_ansi_styles(void)
+{
+    static const char *const application_id = "APPLICATION_A";
+    static const char *const test_string = "test string";
+    struct logmod_logger table[TABLE_LENGTH], *logger;
+    struct logmod logmod;
+    const char *result;
+
+    logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
+    logger = logmod_get_logger(&logmod, "MODULE_A");
+    logmod_logger_set_color(logger, 1);
+
+    result = logmod_encode(logger, test_string, CYAN, REGULAR, FOREGROUND);
+    ASSERT_NEQ(NULL, result);
+    ASSERT_NEQ(NULL, strstr(result, "\x1b[0;36m"));
+
+    result = logmod_encode(logger, test_string, CYAN, BOLD, FOREGROUND);
+    ASSERT_NEQ(NULL, result);
+    ASSERT_NEQ(NULL, strstr(result, "\x1b[1;36m"));
+
+    result = logmod_encode(logger, test_string, CYAN, UNDERLINE, FOREGROUND);
+    ASSERT_NEQ(NULL, result);
+    ASSERT_NEQ(NULL, strstr(result, "\x1b[4;36m"));
+
+    PASS();
+}
+
+TEST
+should_use_fallback_logger(void)
+{
+    const char *const test_message = "Test message using fallback logger";
+    FILE *fp = tmpfile();
+    int fd = fileno(fp);
+    char buffer[256];
+    size_t bytes_read;
+    int original_stdout = dup(STDOUT_FILENO);
+
+    dup2(fd, STDOUT_FILENO);
+    logmod_nlog(INFO, NULL, (test_message), 0);
+    fflush(stdout);
+    dup2(original_stdout, STDOUT_FILENO);
+    close(original_stdout);
+
+    rewind(fp);
+    bytes_read = fread(buffer, 1, sizeof(buffer) - 1, fp);
+    buffer[bytes_read] = '\0';
+
+    ASSERT_GT(bytes_read, 0);
+    ASSERT_NEQ(NULL, strstr(buffer, test_message));
 
     PASS();
 }
@@ -239,16 +531,28 @@ SUITE(logger_options)
     RUN_TEST(should_set_logger_options);
 }
 
+SUITE(cleanup)
+{
+    RUN_TEST(should_cleanup_logmod);
+}
+
 SUITE(logging)
 {
     RUN_TEST(should_log_message);
     RUN_TEST(should_log_to_file);
     RUN_TEST(should_format_log_message);
+    RUN_TEST(should_log_with_custom_levels);
+    RUN_TEST(should_get_correct_level_labels);
+    RUN_TEST(should_get_level_by_label_name);
+    RUN_TEST(should_use_fallback_logger);
 }
 
-SUITE(cleanup)
+SUITE(ansi)
 {
-    RUN_TEST(should_cleanup_logmod);
+    RUN_TEST(should_encode_ansi_string);
+    RUN_TEST(should_return_original_string_when_color_disabled);
+    RUN_TEST(should_handle_different_ansi_visibilities);
+    RUN_TEST(should_handle_different_ansi_styles);
 }
 
 GREATEST_MAIN_DEFS();
@@ -260,8 +564,9 @@ main(int argc, char *argv[])
 
     RUN_SUITE(initialization);
     RUN_SUITE(logger_options);
-    RUN_SUITE(logging);
     RUN_SUITE(cleanup);
+    RUN_SUITE(logging);
+    RUN_SUITE(ansi);
 
     GREATEST_MAIN_END();
 }

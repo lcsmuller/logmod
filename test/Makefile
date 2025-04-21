@@ -2,7 +2,7 @@ TOP = ..
 
 OBJS = $(TOP)/logmod.o
 
-CFLAGS = -Wall -std=c89 -Wpedantic -I$(TOP)
+CFLAGS += -Wall -std=c89 -Wpedantic -I$(TOP) -g
 
 TESTS = test
 
@@ -11,9 +11,10 @@ all: $(TESTS)
 $(TESTS): $(OBJS)
 
 $(OBJS):
-	$(MAKE) -C $(TOP)
+	CFLAGS="-g" $(MAKE) -C $(TOP)
 
 clean:
+	@ $(MAKE) -C $(TOP) clean
 	@ rm -f $(TESTS)
 
 .PHONY: clean
