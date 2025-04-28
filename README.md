@@ -174,7 +174,6 @@ You can set a custom callback for advanced logging scenarios:
 ```c
 logmod_err my_callback(
     const struct logmod_logger *logger,
-    const struct tm *time_info,
     const struct logmod_label *const label,
     const char *fmt,
     va_list args) 
