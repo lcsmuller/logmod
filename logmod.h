@@ -1,8 +1,20 @@
 #ifndef LOGMOD_H
 #define LOGMOD_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #include <stdio.h>
 #include <stdarg.h>
+
+#if defined(__MINGW32__)                                                      \
+    || (defined(__GNUC__) && __GNUC__ > 4 ? true : __GNUC_PATCHLEVEL__ >= 4)  \
+    || defined(__USE_MINGW_ANSI_STDIO)
+#define LOGMOD_PRINTF_LIKE(a, b) __attribute__((format(gnu_printf, a, b)))
+#else
+#define LOGMOD_PRINTF_LIKE(a, b)
+#endif
 
 #ifndef LOGMOD_FALLBACK_APPLICATION_ID
 #define LOGMOD_FALLBACK_APPLICATION_ID "APPLICATION"
@@ -177,7 +189,7 @@ logmod_err _logmod_log(const struct logmod_logger *logger,
                        const char *const filename,
                        const unsigned level,
                        const char *fmt,
-                       ...);
+                       ...) LOGMOD_PRINTF_LIKE(5, 6);
 
 #define logmod_encode(_logger, _buf, _color, _style, _visibility)             \
     _logmod_encode(_logger, _buf, LOGMOD_COLOR_##_color,                      \
@@ -224,5 +236,9 @@ const char *_logmod_encode(const struct logmod_logger *logger,
 #define LOGMOD_SPREAD_TUPLE_16(_fmt, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, \
                                _11, _12, _13, _14, _15, _16)                  \
     _fmt, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* LOGMOD_H */
