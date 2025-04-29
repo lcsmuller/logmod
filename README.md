@@ -13,10 +13,20 @@ LogMod is a simple logging module for C applications. It provides functionality 
 - Optionally log messages to a file.
 - ANSI color support for terminal output.
 - Compatible with both C89 and C99 standards.
+- Single header file implementation for easy integration.
 
-## Installation
+## Build
 
-To use LogMod in your project, include the `logmod.h` header file and link against the `logmod.c` source file.
+LogMod is single-header-only library, so it includes additional macros for more complex uses cases. `#define LOGMOD_STATIC` hides all LogMod API symbols by making them static. Also, if you want to include `logmod.h` from multiple C files, to avoid duplication of symbols you may define `LOGMOD_HEADER` macro.
+
+```c
+/* In every .c file that uses LogMod include only declarations: */
+#define LOGMOD_HEADER
+#include "logmod.h"
+
+/* Additionally, create one logmod.c file for LogMod implementation: */
+#include "logmod.h"
+```
 
 ## Usage
 
