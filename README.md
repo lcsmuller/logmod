@@ -198,7 +198,9 @@ logmod_err my_callback(
     }
     
     // Custom logging implementation
-    return LOGMOD_OK;
+    return LOGMOD_OK;  // Stop default logging behavior
+    // OR
+    return LOGMOD_OK_CONTINUE;  // Continue with default logging
 }
 
 // Set the callback with custom labels
@@ -208,6 +210,19 @@ logmod_logger_set_callback(logger, custom_labels, num_custom_labels, my_callback
 // Set user data separately if needed
 logmod_logger_set_data(logger, my_user_data);
 ```
+
+#### Callback Return Values
+
+Your callback function should return one of these values:
+
+- `LOGMOD_OK`: Indicates the callback has fully handled the log message, and the default logging functionality should be skipped (no console or file output).
+- `LOGMOD_OK_CONTINUE`: Indicates the callback has processed the message but wants the default logging behavior (console/file output) to continue afterward. This is useful when you want to augment rather than replace the standard logging.
+- Any other error code: If your callback returns any other error code, logging will stop and the error will be propagated to the caller.
+
+This flexibility allows you to implement callbacks that can either:
+- Completely replace the default logging
+- Perform additional actions before normal logging continues
+- Filter or transform messages before they're written to console/file
 
 ### Logger Options
 

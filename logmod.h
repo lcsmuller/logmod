@@ -43,9 +43,10 @@ enum logmod_levels {
 };
 
 typedef enum {
-    LOGMOD_OK = 0,
+    LOGMOD_ERRNO = -2,
     LOGMOD_BAD_PARAMETER = -1,
-    LOGMOD_ERRNO = -2
+    LOGMOD_OK = 0,
+    LOGMOD_OK_CONTINUE
 } logmod_err;
 
 struct logmod_logger_options {
@@ -618,7 +619,7 @@ _logmod_log(const struct logmod_logger *logger,
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
     const struct logmod_label *const label =
         logmod_logger_get_label(logger, level);
-    logmod_err code = LOGMOD_OK;
+    logmod_err code = LOGMOD_OK_CONTINUE;
     va_list args;
 
     mut_logger->line = line;
@@ -632,7 +633,7 @@ _logmod_log(const struct logmod_logger *logger,
         }
         va_end(args);
     }
-    else {
+    if (code == LOGMOD_OK_CONTINUE) {
         if (!logger->options.quiet || level == LOGMOD_LEVEL_FATAL) {
             const time_t time_raw = time(NULL);
             const struct tm *time_info = localtime(&time_raw);
