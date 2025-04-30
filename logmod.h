@@ -6,9 +6,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 #ifdef LOGMOD_STATIC
-#define LOGMOD_STATIC static
+#define LOGMOD_API static
 #else
-#define LOGMOD_STATIC extern
+#define LOGMOD_API extern
 #endif /* LOGMOD_STATIC */
 
 #include <stdio.h>
@@ -137,80 +137,77 @@ struct logmod {
     logmod_lock lock;
 };
 
-LOGMOD_STATIC logmod_err logmod_init(struct logmod *logmod,
-                                     const char *const application_id,
-                                     struct logmod_logger table[],
-                                     unsigned length);
+LOGMOD_API logmod_err logmod_init(struct logmod *logmod,
+                                  const char *const application_id,
+                                  struct logmod_logger table[],
+                                  unsigned length);
 
-LOGMOD_STATIC logmod_err logmod_cleanup(struct logmod *logmod);
+LOGMOD_API logmod_err logmod_cleanup(struct logmod *logmod);
 
-LOGMOD_STATIC logmod_err logmod_set_lock(struct logmod *logmod,
-                                         logmod_lock lock);
+LOGMOD_API logmod_err logmod_set_lock(struct logmod *logmod, logmod_lock lock);
 
-LOGMOD_STATIC logmod_err logmod_logger_set_data(struct logmod_logger *logger,
-                                                void *user_data);
+LOGMOD_API logmod_err logmod_logger_set_data(struct logmod_logger *logger,
+                                             void *user_data);
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_logger_set_callback(struct logmod_logger *logger,
                            const struct logmod_label *const custom_labels,
                            const size_t num_custom_labels,
                            logmod_callback callback);
 
-LOGMOD_STATIC logmod_err logmod_logger_set_options(
+LOGMOD_API logmod_err logmod_logger_set_options(
     struct logmod_logger *logger, struct logmod_logger_options options);
 
-LOGMOD_STATIC logmod_err logmod_logger_set_quiet(struct logmod_logger *logger,
-                                                 int quiet);
+LOGMOD_API logmod_err logmod_logger_set_quiet(struct logmod_logger *logger,
+                                              int quiet);
 
-LOGMOD_STATIC logmod_err logmod_logger_set_color(struct logmod_logger *logger,
-                                                 int color);
+LOGMOD_API logmod_err logmod_logger_set_color(struct logmod_logger *logger,
+                                              int color);
 
-LOGMOD_STATIC logmod_err
-logmod_logger_set_logfile(struct logmod_logger *logger, FILE *logfile);
+LOGMOD_API logmod_err logmod_logger_set_logfile(struct logmod_logger *logger,
+                                                FILE *logfile);
 
-LOGMOD_STATIC struct logmod_logger *logmod_get_logger(
+LOGMOD_API struct logmod_logger *logmod_get_logger(
     struct logmod *logmod, const char *const context_id);
 
-LOGMOD_STATIC const struct logmod_label *const logmod_logger_get_label(
+LOGMOD_API const struct logmod_label *logmod_logger_get_label(
     const struct logmod_logger *logger, const unsigned level);
 
-LOGMOD_STATIC long logmod_logger_get_level(const struct logmod_logger *logger,
-                                           const char *const label);
+LOGMOD_API long logmod_logger_get_level(const struct logmod_logger *logger,
+                                        const char *const label);
 
-LOGMOD_STATIC long logmod_logger_get_counter(
-    const struct logmod_logger *logger);
+LOGMOD_API long logmod_logger_get_counter(const struct logmod_logger *logger);
 
 #define logmod_nlog(_level, _logger, _parenthesized_params, num_params)       \
     _logmod_log(_logger, __LINE__, __FILE__, LOGMOD_LEVEL_##_level,           \
                 LOGMOD_SPREAD_TUPLE_##num_params _parenthesized_params)
 
 #if __STDC_VERSION__ && __STDC_VERSION__ >= 199901L
-
-#define _logmod_log_permissive(_level, _line, _file, _logger, _fmt, ...)      \
+#define _logmod_log_permissive(_level, _logger, _line, _file, _fmt, ...)      \
     _logmod_log(_logger, _line, _file, _level, _fmt "%s", __VA_ARGS__)
 #define logmod_log(_level, _logger, ...)                                      \
-    _logmod_log_permissive(_logger, __LINE__, __FILE__,                       \
-                           LOGMOD_LEVEL_##_level, __VA_ARGS__, "")
+    _logmod_log_permissive(LOGMOD_LEVEL_##_level, _logger, __LINE__,          \
+                           __FILE__, __VA_ARGS__, "")
 #else
 #define logmod_log logmod_nlog
 #endif /* __STDC_VERSION__ */
 
-LOGMOD_STATIC logmod_err _logmod_log(const struct logmod_logger *logger,
-                                     const unsigned line,
-                                     const char *const filename,
-                                     const unsigned level,
-                                     const char *fmt,
-                                     ...) LOGMOD_PRINTF_LIKE(5, 6);
+LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
+                                  const unsigned line,
+                                  const char *const filename,
+                                  const unsigned level,
+                                  const char *fmt,
+                                  ...) LOGMOD_PRINTF_LIKE(5, 6);
 
 #define logmod_encode(_logger, _buf, _color, _style, _visibility)             \
     _logmod_encode(_logger, _buf, LOGMOD_COLOR_##_color,                      \
                    LOGMOD_STYLE_##_style, LOGMOD_VISIBILITY_##_visibility)
 
-LOGMOD_STATIC const char *_logmod_encode(const struct logmod_logger *logger,
-                                         const char *buf,
-                                         enum logmod_colors color,
-                                         enum logmod_styles style,
-                                         enum logmod_visibility visibility);
+LOGMOD_API const char *_logmod_encode(const struct logmod_logger *logger,
+                                      const char *buf,
+                                      enum logmod_colors color,
+                                      enum logmod_styles style,
+                                      enum logmod_visibility visibility);
 
 #define LOGMOD_SPREAD_TUPLE_0(_fmt)                 _fmt
 #define LOGMOD_SPREAD_TUPLE_1(_fmt, _1)             _fmt, _1
@@ -279,9 +276,11 @@ static const struct logmod_label default_labels[__LOGMOD_LEVEL_MAX] = {
 static void
 _logmod_lock_noop(const struct logmod_logger *_, int __)
 {
+    (void)_;
+    (void)__;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_init(struct logmod *logmod,
             const char *const application_id,
             struct logmod_logger table[],
@@ -312,7 +311,7 @@ logmod_init(struct logmod *logmod,
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_cleanup(struct logmod *logmod)
 {
     size_t i;
@@ -328,7 +327,7 @@ logmod_cleanup(struct logmod *logmod)
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_set_lock(struct logmod *logmod, logmod_lock lock)
 {
     if (logmod == NULL) {
@@ -347,7 +346,7 @@ logmod_set_lock(struct logmod *logmod, logmod_lock lock)
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_logger_set_data(struct logmod_logger *logger, void *user_data)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
@@ -362,7 +361,7 @@ logmod_logger_set_data(struct logmod_logger *logger, void *user_data)
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_logger_set_callback(struct logmod_logger *logger,
                            const struct logmod_label *const custom_labels,
                            const size_t num_custom_labels,
@@ -389,7 +388,7 @@ logmod_logger_set_callback(struct logmod_logger *logger,
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_logger_set_options(struct logmod_logger *logger,
                           struct logmod_logger_options options)
 {
@@ -405,7 +404,7 @@ logmod_logger_set_options(struct logmod_logger *logger,
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_logger_set_quiet(struct logmod_logger *logger, int quiet)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
@@ -420,7 +419,7 @@ logmod_logger_set_quiet(struct logmod_logger *logger, int quiet)
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_logger_set_color(struct logmod_logger *logger, int color)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
@@ -435,7 +434,7 @@ logmod_logger_set_color(struct logmod_logger *logger, int color)
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 logmod_logger_set_logfile(struct logmod_logger *logger, FILE *logfile)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
@@ -450,11 +449,11 @@ logmod_logger_set_logfile(struct logmod_logger *logger, FILE *logfile)
     return LOGMOD_OK;
 }
 
-LOGMOD_STATIC const struct logmod_label *const
+LOGMOD_API const struct logmod_label *
 logmod_logger_get_label(const struct logmod_logger *logger,
                         const unsigned level)
 {
-    if (level >= 0 && level < LOGMOD_LEVEL_CUSTOM) {
+    if (level < LOGMOD_LEVEL_CUSTOM) {
         return &default_labels[level];
     }
     if (logger && level >= LOGMOD_LEVEL_CUSTOM
@@ -465,7 +464,7 @@ logmod_logger_get_label(const struct logmod_logger *logger,
     return NULL;
 }
 
-LOGMOD_STATIC long
+LOGMOD_API long
 logmod_logger_get_level(const struct logmod_logger *logger,
                         const char *const label)
 {
@@ -482,18 +481,18 @@ logmod_logger_get_level(const struct logmod_logger *logger,
 
     for (i = 0; i < __LOGMOD_LEVEL_MAX; ++i) {
         if (strcmp(label, default_labels[i].name) == 0) {
-            return i;
+            return (long)i;
         }
     }
     for (i = 0; i < logger->num_custom_labels; ++i) {
         if (strcmp(label, logger->custom_labels[i].name) == 0) {
-            return i + LOGMOD_LEVEL_CUSTOM;
+            return (long)(i + LOGMOD_LEVEL_CUSTOM);
         }
     }
     return -1;
 }
 
-LOGMOD_STATIC long
+LOGMOD_API long
 logmod_logger_get_counter(const struct logmod_logger *logger)
 {
     struct logmod *logmod = LOGMOD_FROM_LOGGER(logger);
@@ -512,7 +511,7 @@ logmod_logger_get_counter(const struct logmod_logger *logger)
     return counter;
 }
 
-LOGMOD_STATIC struct logmod_logger *
+LOGMOD_API struct logmod_logger *
 logmod_get_logger(struct logmod *logmod, const char *const context_id)
 {
     struct logmod_mut_logger *mut_loggers =
@@ -585,16 +584,19 @@ static struct logmod g_logmod;
 
 /** global logger used as a fallback */
 static struct logmod_logger g_loggers[] = {
-    { 0,
-      NULL,
-      0,
-      LOGMOD_FALLBACK_CONTEXT_ID,
-      { NULL },
-      &g_logmod.counter,
-      NULL,
-      NULL,
-      default_labels,
-      0 },
+    {
+        0,
+        NULL,
+        0,
+        LOGMOD_FALLBACK_CONTEXT_ID,
+        { NULL },
+        &g_logmod.counter,
+        NULL,
+        NULL,
+        default_labels,
+        0,
+        { NULL, 0 },
+    },
 };
 /** global logmod used as a fallback */
 static struct logmod g_logmod = {
@@ -606,7 +608,7 @@ static struct logmod g_logmod = {
     _logmod_lock_noop,
 };
 
-LOGMOD_STATIC logmod_err
+LOGMOD_API logmod_err
 _logmod_log(const struct logmod_logger *logger,
             const unsigned line,
             const char *const filename,
@@ -668,7 +670,7 @@ _logmod_log(const struct logmod_logger *logger,
     return code;
 }
 
-LOGMOD_STATIC const char *
+LOGMOD_API const char *
 _logmod_encode(const struct logmod_logger *logger,
                const char *buf,
                enum logmod_colors color,
