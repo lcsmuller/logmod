@@ -224,17 +224,22 @@ This flexibility allows you to implement callbacks that can either:
 - Perform additional actions before normal logging continues
 - Filter or transform messages before they're written to console/file
 
-### Logger Options
+### LogMod Options
 
 You can configure various options for your logger:
 
 ```c
 // Set all options at once
-struct logmod_logger_options options = {
+struct logmod_options options = {
     .logfile = fopen("app.log", "a"),
     .quiet = 0,
     .color = 1
 };
+
+// Set default options for all loggers
+logmod_set_options(&logmod, options);
+
+// Set options for a specific logger
 logmod_logger_set_options(logger, options);
 
 // Or set individual options
@@ -366,7 +371,7 @@ Returns `LOGMOD_OK` on success.
 ### `logmod_logger_set_options`
 
 ```c
-logmod_err logmod_logger_set_options(struct logmod_logger *logger, struct logmod_logger_options options);
+logmod_err logmod_logger_set_options(struct logmod_logger *logger, struct logmod_options options);
 ```
 
 Sets the options for the logger.
@@ -481,6 +486,55 @@ if (http_level >= 0) {
 if (logmod_logger_get_level(logger, "WARN") == logmod_logger_get_level(logger, "ERROR")) {
     // Handle case where WARN and ERROR have the same level
 }
+```
+
+### `logmod_logger_set_level`
+
+```c
+logmod_err logmod_logger_set_level(struct logmod_logger *logger, unsigned level);
+```
+
+Sets the minimum logging level for the logger. Messages with a level lower than this will be suppressed.
+- `logger`: Pointer to the logger structure.
+- `level`: Minimum level to log (e.g., LOGMOD_LEVEL_INFO will only show INFO, WARN, ERROR, and FATAL).
+Returns `LOGMOD_OK` on success.
+
+```c
+// Examples:
+// Only show warnings and more severe messages
+logmod_logger_set_level(logger, LOGMOD_LEVEL_WARN);
+
+// Show all messages including trace
+logmod_logger_set_level(logger, LOGMOD_LEVEL_TRACE);
+
+// Show only error and fatal messages
+logmod_logger_set_level(logger, LOGMOD_LEVEL_ERROR);
+```
+
+### `logmod_set_options`
+
+```c
+logmod_err logmod_set_options(struct logmod *logmod, struct logmod_options options);
+```
+
+Sets the default options for all new loggers created from this logmod instance. This affects the baseline configuration for loggers retrieved with `logmod_get_logger()` after this call, but does not modify existing loggers.
+- `logmod`: Pointer to the logging context structure.
+- `options`: Options structure containing default settings for quiet mode, color support, log level, and log file.
+Returns `LOGMOD_OK` on success.
+
+```c
+// Example: Configure default options for all new loggers
+struct logmod_options default_opts = {
+    .logfile = fopen("application.log", "a"),
+    .quiet = 0,     // Show console output by default
+    .color = 1,     // Enable colored output by default
+    .level = LOGMOD_LEVEL_INFO  // Only show INFO and above by default
+};
+logmod_set_options(&logmod, default_opts);
+
+// Any new loggers will inherit these settings
+struct logmod_logger *new_logger = logmod_get_logger(&logmod, "NEW_MODULE");
+// new_logger now has the default options set above
 ```
 
 ### Fallback Logger

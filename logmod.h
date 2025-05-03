@@ -49,11 +49,11 @@ typedef enum {
     LOGMOD_OK_CONTINUE
 } logmod_err;
 
-struct logmod_logger_options {
+struct logmod_options {
     FILE *logfile;
-    char *buffer;
     int quiet;
     int color;
+    unsigned level;
 };
 
 struct logmod_label {
@@ -105,7 +105,7 @@ enum logmod_visibility {
     const char *_qualifier filename;                                          \
     _qualifier unsigned level;                                                \
     const char *context_id;                                                   \
-    _qualifier struct logmod_logger_options options;                          \
+    _qualifier struct logmod_options options;                                 \
     const long *counter;                                                      \
     _qualifier logmod_callback callback;                                      \
     _qualifier void *user_data;                                               \
@@ -134,6 +134,7 @@ struct logmod {
     const size_t length;
     const size_t real_length;
     long counter;
+    const struct logmod_options default_options;
     logmod_lock lock;
 };
 
@@ -146,6 +147,9 @@ LOGMOD_API logmod_err logmod_cleanup(struct logmod *logmod);
 
 LOGMOD_API logmod_err logmod_set_lock(struct logmod *logmod, logmod_lock lock);
 
+LOGMOD_API logmod_err logmod_set_options(struct logmod *logmod,
+                                         struct logmod_options options);
+
 LOGMOD_API logmod_err logmod_logger_set_data(struct logmod_logger *logger,
                                              void *user_data);
 
@@ -155,14 +159,17 @@ logmod_logger_set_callback(struct logmod_logger *logger,
                            const size_t num_custom_labels,
                            logmod_callback callback);
 
-LOGMOD_API logmod_err logmod_logger_set_options(
-    struct logmod_logger *logger, struct logmod_logger_options options);
+LOGMOD_API logmod_err logmod_logger_set_options(struct logmod_logger *logger,
+                                                struct logmod_options options);
 
 LOGMOD_API logmod_err logmod_logger_set_quiet(struct logmod_logger *logger,
                                               int quiet);
 
 LOGMOD_API logmod_err logmod_logger_set_color(struct logmod_logger *logger,
                                               int color);
+
+LOGMOD_API logmod_err logmod_logger_set_level(struct logmod_logger *logger,
+                                              unsigned level);
 
 LOGMOD_API logmod_err logmod_logger_set_logfile(struct logmod_logger *logger,
                                                 FILE *logfile);
@@ -259,12 +266,18 @@ LOGMOD_API const char *_logmod_encode(const struct logmod_logger *logger,
 #define __COLOR(_color, _visibility)                                          \
     LOGMOD_COLOR_##_color + LOGMOD_VISIBILITY_##_visibility
 static const struct logmod_label default_labels[__LOGMOD_LEVEL_MAX] = {
-    /*[LOGMOD_LEVEL_TRACE]:*/ { "TRACE", __COLOR(BLUE, INTENSITY), 0 },
-    /*[LOGMOD_LEVEL_DEBUG]:*/ { "DEBUG", __COLOR(CYAN, FOREGROUND), 0 },
-    /*[LOGMOD_LEVEL_INFO]: */ { "INFO", __COLOR(GREEN, FOREGROUND), 0 },
-    /*[LOGMOD_LEVEL_WARN]: */ { "WARN", __COLOR(YELLOW, FOREGROUND), 1 },
-    /*[LOGMOD_LEVEL_ERROR]:*/ { "ERROR", __COLOR(RED, FOREGROUND), 1 },
-    /*[LOGMOD_LEVEL_FATAL]:*/ { "FATAL", __COLOR(MAGENTA, FOREGROUND), 1 },
+    /*[LOGMOD_LEVEL_TRACE]:*/ { "TRACE", __COLOR(BLUE, BACKGROUND_INTENSITY),
+                                0 },
+    /*[LOGMOD_LEVEL_DEBUG]:*/
+    { "DEBUG", __COLOR(CYAN, BACKGROUND), 0 },
+    /*[LOGMOD_LEVEL_INFO]: */
+    { "INFO", __COLOR(GREEN, BACKGROUND), 0 },
+    /*[LOGMOD_LEVEL_WARN]: */
+    { "WARN", __COLOR(YELLOW, BACKGROUND), 1 },
+    /*[LOGMOD_LEVEL_ERROR]:*/
+    { "ERROR", __COLOR(RED, BACKGROUND), 1 },
+    /*[LOGMOD_LEVEL_FATAL]:*/
+    { "FATAL", __COLOR(MAGENTA, BACKGROUND), 1 },
 };
 #undef __COLOR
 
@@ -347,6 +360,22 @@ logmod_set_lock(struct logmod *logmod, logmod_lock lock)
 }
 
 LOGMOD_API logmod_err
+logmod_set_options(struct logmod *logmod, struct logmod_options options)
+{
+    struct logmod_options *mut_default_options =
+        (struct logmod_options *)&logmod->default_options;
+    if (logmod == NULL) {
+        logmod_nlog(ERROR, NULL, ("Missing logmod at logmod_set_options()"),
+                    0);
+        return LOGMOD_BAD_PARAMETER;
+    }
+
+    *mut_default_options = options;
+
+    return LOGMOD_OK;
+}
+
+LOGMOD_API logmod_err
 logmod_logger_set_data(struct logmod_logger *logger, void *user_data)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
@@ -390,7 +419,7 @@ logmod_logger_set_callback(struct logmod_logger *logger,
 
 LOGMOD_API logmod_err
 logmod_logger_set_options(struct logmod_logger *logger,
-                          struct logmod_logger_options options)
+                          struct logmod_options options)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
     if (mut_logger == NULL) {
@@ -430,6 +459,21 @@ logmod_logger_set_color(struct logmod_logger *logger, int color)
     }
 
     mut_logger->options.color = color;
+
+    return LOGMOD_OK;
+}
+
+LOGMOD_API logmod_err
+logmod_logger_set_level(struct logmod_logger *logger, unsigned level)
+{
+    struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
+    if (mut_logger == NULL) {
+        logmod_nlog(ERROR, NULL,
+                    ("Missing logger at logmod_logger_set_level()"), 0);
+        return LOGMOD_BAD_PARAMETER;
+    }
+
+    mut_logger->options.level = level;
 
     return LOGMOD_OK;
 }
@@ -531,6 +575,7 @@ logmod_get_logger(struct logmod *logmod, const char *const context_id)
     memset(&mut_loggers[logmod->length], 0, sizeof *mut_loggers);
     mut_loggers[logmod->length].context_id = context_id;
     mut_loggers[logmod->length].counter = &logmod->counter;
+    mut_loggers[logmod->length].options = logmod->default_options;
 
     return (struct logmod_logger *)&logmod->loggers[(*mut_length)++];
 }
@@ -545,7 +590,9 @@ _logmod_print(const struct logmod_logger *logger,
               FILE *output)
 {
     if (color) {
-        if (0 >= fprintf(output, "%02d:%02d:%02d \x1b%um%s\x1b[0m %s:%d: ",
+        if (0 >= fprintf(output,
+                         "\x1b[40m%02d:%02d:%02d\x1b[0m \x1b[%um%s\x1b[0m "
+                         "\x1b[33m%s:%d\x1b[0m: ",
                          time_info->tm_hour, time_info->tm_min,
                          time_info->tm_sec, label->color, label->name,
                          logger->filename, logger->line))
@@ -589,7 +636,7 @@ static struct logmod_logger g_loggers[] = {
         NULL,
         0,
         LOGMOD_FALLBACK_CONTEXT_ID,
-        { NULL },
+        { NULL, 0, 1, LOGMOD_LEVEL_TRACE },
         &g_logmod.counter,
         NULL,
         NULL,
@@ -605,6 +652,7 @@ static struct logmod g_logmod = {
     sizeof(g_loggers) / sizeof *g_loggers,
     sizeof(g_loggers) / sizeof *g_loggers,
     0,
+    { NULL, 0, 1, LOGMOD_LEVEL_TRACE },
     _logmod_lock_noop,
 };
 
@@ -635,7 +683,8 @@ _logmod_log(const struct logmod_logger *logger,
         }
         va_end(args);
     }
-    if (code == LOGMOD_OK_CONTINUE) {
+
+    if (level >= mut_logger->options.level && code == LOGMOD_OK_CONTINUE) {
         if (!logger->options.quiet || level == LOGMOD_LEVEL_FATAL) {
             const time_t time_raw = time(NULL);
             const struct tm *time_info = localtime(&time_raw);

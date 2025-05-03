@@ -89,7 +89,7 @@ should_set_logger_options(void)
     static const char *const context_id = "MODULE_A";
     struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
-    struct logmod_logger_options options = { 0 };
+    struct logmod_options options = { 0 };
     FILE *fp = tmpfile();
     logmod_err code;
 
