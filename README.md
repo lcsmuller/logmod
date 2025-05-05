@@ -184,7 +184,7 @@ You can set a custom callback for advanced logging scenarios:
 ```c
 logmod_err my_callback(
     const struct logmod_logger *logger,
-    const struct logmod_label *const label,
+    const struct logmod_entry_info *info,
     const char *fmt,
     va_list args) 
 {
@@ -192,7 +192,7 @@ logmod_err my_callback(
     void *user_data = logger->user_data;
     
     // Check if it's a custom label
-    if (logger->level >= LOGMOD_LEVEL_CUSTOM) {
+    if (info->level >= LOGMOD_LEVEL_CUSTOM) {
         // Handle custom log labels
         // ...
     }

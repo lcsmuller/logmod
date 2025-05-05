@@ -26,12 +26,12 @@ static const char *last_label = NULL;
 
 static logmod_err
 test_callback(const struct logmod_logger *logger,
-              const struct logmod_label *const label,
+              const struct logmod_entry_info *info,
               const char *fmt,
               va_list args)
 {
     callback_was_called = 1;
-    last_label = label->name;
+    last_label = info->label->name;
     last_message = fmt;
     if (logger->options.logfile) {
         vfprintf(logger->options.logfile, fmt, args);
