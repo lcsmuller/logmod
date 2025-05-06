@@ -79,7 +79,9 @@ typedef enum {
     LOGMOD_ERRNO = -2, /**< System error, check errno */
     LOGMOD_BAD_PARAMETER = -1, /**< Invalid parameter passed to function */
     LOGMOD_OK = 0, /**< Success */
-    LOGMOD_OK_CONTINUE /**< Success, continue with default behavior */
+    LOGMOD_OK_CONTINUE, /**< Success, continue with default behavior */
+    LOGMOD_OK_SKIPPED /**< Success, logger has been skipped from logging due to
+                         being disabled by user */
 } logmod_err;
 
 /**
@@ -203,7 +205,8 @@ typedef logmod_err (*logmod_callback)(const struct logmod_logger *logger,
     _qualifier logmod_callback callback;                                      \
     _qualifier void *user_data;                                               \
     const struct logmod_label *_qualifier custom_labels;                      \
-    _qualifier size_t num_custom_labels
+    _qualifier size_t num_custom_labels;                                      \
+    _qualifier int disabled
 
 #define __BLANK
 /**
@@ -283,6 +286,16 @@ LOGMOD_API logmod_err logmod_set_lock(struct logmod *logmod, logmod_lock lock);
  */
 LOGMOD_API logmod_err logmod_set_options(struct logmod *logmod,
                                          struct logmod_options options);
+
+/**
+ * @brief Toggle a specific logger from logging (default is true)
+ *
+ * @param logmod Pointer to the logging context structure
+ * @param context_id The context id of the logger to be enabled or disabled
+ * @return LOGMOD_OK on success, error code on failure
+ */
+LOGMOD_API logmod_err logmod_toggle_logger(struct logmod *logmod,
+                                           const char *const context_id);
 
 /**
  * @brief Set user data for a logger
@@ -682,6 +695,19 @@ logmod_set_options(struct logmod *logmod, struct logmod_options options)
 }
 
 LOGMOD_API logmod_err
+logmod_toggle_logger(struct logmod *logmod, const char *const context_id)
+{
+    struct logmod_mut_logger *mut_logger;
+    logmod->lock(NULL, 1);
+    mut_logger =
+        (struct logmod_mut_logger *)logmod_get_logger(logmod, context_id);
+    logmod->lock(NULL, 0);
+    LOGMOD_EXPECT(mut_logger != NULL, LOGMOD_BAD_PARAMETER);
+    mut_logger->disabled = !mut_logger->disabled;
+    return LOGMOD_OK;
+}
+
+LOGMOD_API logmod_err
 logmod_logger_set_id_visibility(struct logmod_logger *logger,
                                 int show_app_id,
                                 int show_context_id)
@@ -816,25 +842,33 @@ logmod_logger_get_counter(const struct logmod_logger *logger)
 LOGMOD_API struct logmod_logger *
 logmod_get_logger(struct logmod *logmod, const char *const context_id)
 {
-    struct logmod_mut_logger *mut_loggers =
-        (struct logmod_mut_logger *)logmod->loggers;
-    size_t *mut_length = (size_t *)&logmod->length;
     size_t i;
     _LOGMOD_EXPECT(logmod != NULL, LOGMOD_BAD_PARAMETER, NULL);
     _LOGMOD_EXPECT(logmod->loggers != NULL, LOGMOD_BAD_PARAMETER, NULL);
     _LOGMOD_EXPECT(context_id != NULL, LOGMOD_BAD_PARAMETER, NULL);
+    logmod->lock(NULL, 1);
     for (i = 0; i < logmod->length; ++i) {
-        if (0 == strcmp(logmod->loggers[i].context_id, context_id))
-            return (struct logmod_logger *)&logmod->loggers[i];
+        if (0 == strcmp(logmod->loggers[i].context_id, context_id)) {
+            struct logmod_logger *logger =
+                (struct logmod_logger *)&logmod->loggers[i];
+            logmod->lock(logger, 0);
+            return logger;
+        }
     }
-    if (logmod->length >= logmod->real_length) {
-        return NULL;
+    if (logmod->length < logmod->real_length) {
+        size_t *mut_length = (size_t *)&logmod->length;
+        struct logmod_mut_logger *mut_logger =
+            (struct logmod_mut_logger *)&logmod->loggers[logmod->length];
+        memset(mut_logger, 0, sizeof *mut_logger);
+        mut_logger->context_id = context_id;
+        mut_logger->counter = &logmod->counter;
+        mut_logger->options = logmod->default_options;
+        ++*mut_length;
+        logmod->lock((struct logmod_logger *)mut_logger, 0);
+        return (struct logmod_logger *)mut_logger;
     }
-    memset(&mut_loggers[logmod->length], 0, sizeof *mut_loggers);
-    mut_loggers[logmod->length].context_id = context_id;
-    mut_loggers[logmod->length].counter = &logmod->counter;
-    mut_loggers[logmod->length].options = logmod->default_options;
-    return (struct logmod_logger *)&logmod->loggers[(*mut_length)++];
+    logmod->lock(NULL, 0);
+    return NULL;
 }
 
 static logmod_err
@@ -952,40 +986,45 @@ _logmod_log(const struct logmod_logger *logger,
 {
     struct logmod *logmod =
         LOGMOD_FROM_LOGGER(!logger ? (logger = &g_loggers[0]) : logger);
-    const struct logmod_info info =
-        _logmod_info_populate(logger, line, filename, level);
-    logmod_err code = LOGMOD_OK_CONTINUE;
-    va_list args;
-    if (logger->callback) {
-        va_start(args, fmt);
-        if ((code = logger->callback(logger, &info, fmt, args)) < LOGMOD_OK) {
-            goto _end;
-        }
-        va_end(args);
-    }
-    if (level >= logger->options.level && code == LOGMOD_OK_CONTINUE) {
-        if (!logger->options.quiet || level == LOGMOD_LEVEL_FATAL) {
+    logmod_err code = LOGMOD_OK_SKIPPED;
+    if (!logger->disabled) {
+        const struct logmod_info info =
+            _logmod_info_populate(logger, line, filename, level);
+        va_list args;
+        code = LOGMOD_OK_CONTINUE;
+        if (logger->callback) {
             va_start(args, fmt);
-            if ((code = _logmod_print(
-                     logger, &info, fmt, args, logger->options.color,
-                     info.label->output == 0 ? stdout : stderr))
-                != LOGMOD_OK)
+            if ((code = logger->callback(logger, &info, fmt, args))
+                < LOGMOD_OK)
             {
                 goto _end;
             }
             va_end(args);
         }
-        if (logger->options.logfile) {
-            va_start(args, fmt);
-            code = _logmod_print(logger, &info, fmt, args, 0,
-                                 logger->options.logfile);
+        if (level >= logger->options.level && code == LOGMOD_OK_CONTINUE) {
+            if (!logger->options.quiet || level == LOGMOD_LEVEL_FATAL) {
+                va_start(args, fmt);
+                if ((code = _logmod_print(
+                         logger, &info, fmt, args, logger->options.color,
+                         info.label->output == 0 ? stdout : stderr))
+                    != LOGMOD_OK)
+                {
+                    goto _end;
+                }
+                va_end(args);
+            }
+            if (logger->options.logfile) {
+                va_start(args, fmt);
+                code = _logmod_print(logger, &info, fmt, args, 0,
+                                     logger->options.logfile);
+            }
         }
+    _end:
+        logmod->lock(logger, 1);
+        ++logmod->counter;
+        logmod->lock(logger, 0);
+        va_end(args);
     }
-_end:
-    logmod->lock(logger, 1);
-    ++logmod->counter;
-    logmod->lock(logger, 0);
-    va_end(args);
     return code;
 }
 

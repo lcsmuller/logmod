@@ -125,6 +125,51 @@ should_set_logger_options(void)
 }
 
 TEST
+should_toggle_logger(void)
+{
+    static const char *const application_id = "APPLICATION_A";
+    static const char *const context_id = "MODULE_A";
+    struct logmod_logger table[TABLE_LENGTH], *logger;
+    struct logmod logmod;
+    FILE *fp = tmpfile();
+    char buffer[256];
+    size_t bytes_read;
+    logmod_err result;
+
+    logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
+    logger = logmod_get_logger(&logmod, context_id);
+
+    ASSERT_EQ(0, logger->disabled);
+
+    logmod_logger_set_logfile(logger, fp);
+    logmod_logger_set_quiet(logger, 1);
+
+    logmod_nlog(INFO, logger, ("Message while enabled"), 0);
+
+    result = logmod_toggle_logger(&logmod, context_id);
+    ASSERT_EQ(LOGMOD_OK, result);
+    ASSERT_EQ(1, logger->disabled);
+
+    logmod_nlog(INFO, logger, ("Message while disabled"), 0);
+
+    result = logmod_toggle_logger(&logmod, context_id);
+    ASSERT_EQ(LOGMOD_OK, result);
+    ASSERT_EQ(0, logger->disabled);
+
+    logmod_nlog(INFO, logger, ("Message after re-enabling"), 0);
+
+    rewind(fp);
+    bytes_read = fread(buffer, 1, sizeof(buffer) - 1, fp);
+    buffer[bytes_read] = '\0';
+
+    ASSERT_NEQ(NULL, strstr(buffer, "Message while enabled"));
+    ASSERT_EQ(NULL, strstr(buffer, "Message while disabled"));
+    ASSERT_NEQ(NULL, strstr(buffer, "Message after re-enabling"));
+
+    PASS();
+}
+
+TEST
 should_log_message(void)
 {
     static const char *const application_id = "APPLICATION_A";
@@ -512,6 +557,7 @@ SUITE(initialization)
 SUITE(logger_options)
 {
     RUN_TEST(should_set_logger_options);
+    RUN_TEST(should_toggle_logger);
 }
 
 SUITE(cleanup)

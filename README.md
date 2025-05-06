@@ -36,6 +36,7 @@ LogMod is a lightweight, flexible logging library for C applications that suppor
   - [logmod_logger_get_level](#logmod_logger_get_level)
   - [logmod_logger_set_level](#logmod_logger_set_level)
   - [logmod_set_options](#logmod_set_options)
+  - [logmod_toggle_logger](#logmod_toggle_logger)
 - [License](#license)
 
 ## Features
@@ -665,6 +666,30 @@ logmod_set_options(&logmod, default_opts);
 struct logmod_logger *new_logger = logmod_get_logger(&logmod, "NEW_MODULE");
 // new_logger now has the default options set above
 ```
+
+### `logmod_toggle_logger`
+
+```c
+logmod_err logmod_toggle_logger(struct logmod *logmod, const char *const context_id);
+```
+
+Toggles a specific logger from enabled to disabled or vice versa. When a logger is disabled, all logging operations through that logger will be skipped.
+Note: this function can be called before the logger's `logmod_get_logger()` first call!
+
+- `logmod`: Pointer to the logging context structure.
+- `context_id`: Context ID string of the logger to toggle.
+Returns `LOGMOD_OK` on success, error code on failure.
+
+```c
+// Examples:
+// Disable a logger (if currently enabled)
+logmod_toggle_logger(&logmod, "NETWORK");
+
+// Later, re-enable the same logger
+logmod_toggle_logger(&logmod, "NETWORK");
+```
+
+Disabled loggers will skip all logging operations and immediately return `LOGMOD_OK_SKIPPED`. This is useful for temporarily silencing specific logging contexts without removing the logging calls from your code.
 
 ## License
 
