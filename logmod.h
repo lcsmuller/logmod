@@ -99,8 +99,8 @@ struct logmod_options {
  */
 struct logmod_label {
     const char *const name; /**< Display name of the log level */
-    const unsigned color; /**< ANSI color code for this label */
-    const unsigned style; /**< ANSI style code for this label */
+    const char *const color; /**< ANSI color code for this label */
+    const char *const style; /**< ANSI style code for this label */
     const int output; /**< Output stream: 0 = stdout, 1 = stderr */
 };
 
@@ -146,31 +146,31 @@ typedef logmod_err (*logmod_callback)(const struct logmod_logger *logger,
 /**
  * @brief ANSI color values
  */
-#define LOGMOD_COLOR_BLACK   0 /**< Black color */
-#define LOGMOD_COLOR_RED     1 /**< Red color */
-#define LOGMOD_COLOR_GREEN   2 /**< Green color */
-#define LOGMOD_COLOR_YELLOW  3 /**< Yellow color */
-#define LOGMOD_COLOR_BLUE    4 /**< Blue color */
-#define LOGMOD_COLOR_MAGENTA 5 /**< Magenta color */
-#define LOGMOD_COLOR_CYAN    6 /**< Cyan color */
-#define LOGMOD_COLOR_WHITE   7 /**< White color */
+#define LOGMOD_COLOR_BLACK   "0" /**< Black color */
+#define LOGMOD_COLOR_RED     "1" /**< Red color */
+#define LOGMOD_COLOR_GREEN   "2" /**< Green color */
+#define LOGMOD_COLOR_YELLOW  "3" /**< Yellow color */
+#define LOGMOD_COLOR_BLUE    "4" /**< Blue color */
+#define LOGMOD_COLOR_MAGENTA "5" /**< Magenta color */
+#define LOGMOD_COLOR_CYAN    "6" /**< Cyan color */
+#define LOGMOD_COLOR_WHITE   "7" /**< White color */
 
 /**
  * @brief ANSI text style values
  */
-#define LOGMOD_STYLE_REGULAR       0 /**< Regular text style */
-#define LOGMOD_STYLE_BOLD          1 /**< Bold text style */
-#define LOGMOD_STYLE_UNDERLINE     4 /**< Underlined text style */
-#define LOGMOD_STYLE_STRIKETHROUGH 9 /**< Strikethrough text style */
+#define LOGMOD_STYLE_REGULAR       "0" /**< Regular text style */
+#define LOGMOD_STYLE_BOLD          "1" /**< Bold text style */
+#define LOGMOD_STYLE_UNDERLINE     "4" /**< Underlined text style */
+#define LOGMOD_STYLE_STRIKETHROUGH "9" /**< Strikethrough text style */
 
 /**
  * @brief ANSI text visibility mode values
  */
-#define LOGMOD_VISIBILITY_FOREGROUND 3 /**< Foreground color */
-#define LOGMOD_VISIBILITY_BACKGROUND 4 /**< Background color */
-#define LOGMOD_VISIBILITY_INTENSITY  9 /**< Intensity (bright) foreground */
+#define LOGMOD_VISIBILITY_FOREGROUND "3" /**< Foreground color */
+#define LOGMOD_VISIBILITY_BACKGROUND "4" /**< Background color */
+#define LOGMOD_VISIBILITY_INTENSITY  "9" /**< Intensity (bright) foreground */
 #define LOGMOD_VISIBILITY_BACKGROUND_INTENSITY                                \
-    10 /**< Intensity (bright) background */
+    "10" /**< Intensity (bright) background */
 
 /**
  * @brief Internal macro for defining logger attributes
@@ -454,10 +454,6 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
                                   const char *fmt,
                                   ...) LOGMOD_PRINTF_LIKE(5, 6);
 
-#define __JOIN(_x, _y)            _x##_y
-#define __EXPAND_AND_JOIN(_x, _y) __JOIN(_x, _y)
-#define __STR(_x)                 #_x
-
 /**
  * @brief Creates a color code by combining visibility and color values
  *
@@ -465,14 +461,14 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
  * @param _visibility Visibility mode (e.g., FOREGROUND, BACKGROUND)
  */
 #define LOGMOD_COLOR(_color, _visibility)                                     \
-    __EXPAND_AND_JOIN(LOGMOD_VISIBILITY_##_visibility, LOGMOD_COLOR_##_color)
+    LOGMOD_VISIBILITY_##_visibility LOGMOD_COLOR_##_color
 
 /**
  * @brief Creates a style code from style name
  *
  * @param _style Style to use (e.g., REGULAR, BOLD, UNDERLINE)
  */
-#define LOGMOD_STYLE(_style) __JOIN(LOGMOD_STYLE_, _style)
+#define LOGMOD_STYLE(_style) LOGMOD_STYLE_##_style
 
 /**
  * @brief Encodes text with ANSI colors and styles
@@ -483,8 +479,7 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
  * @param _visibility Visibility code (LOGMOD_VISIBILITY_* macros)
  */
 #define LOGMOD_ENCODE(buf, _color, _style, _visibility)                       \
-    "\x1b[" __STR(_style) ";" __STR(_visibility) __STR(_color) "m" buf        \
-                                                               "\x1b[0m"
+    "\x1b[" _style ";" _visibility _color "m" buf "\x1b[0m"
 
 /**
  * @brief Static encoding of text with ANSI colors (compile-time)
@@ -957,7 +952,7 @@ _logmod_print(const struct logmod_logger *logger,
 
     if (color) {
         if (0 >= fprintf(output,
-                         LME("%s", %u, LOGMOD_STYLE_REGULAR,
+                         LME("%s", "%s", LOGMOD_STYLE_REGULAR,
                              LOGMOD_VISIBILITY_FOREGROUND)
                              LMS(" %s:%d", YELLOW, REGULAR, FOREGROUND) ": ",
                          info->label->color, info->label->name, info->filename,
