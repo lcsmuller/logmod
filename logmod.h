@@ -89,6 +89,8 @@ struct logmod_options {
     FILE *logfile; /**< File to write logs to, or NULL for no file output */
     int quiet; /**< If 1, suppress console output */
     int color; /**< If 1, enable ANSI colors on console output */
+    int hide_context_id; /**< If 1, suppress context ID in log messages */
+    int show_application_id; /**< If 1, show application ID in log messages */
     unsigned level; /**< Minimum level to log (suppress messages below this) */
 };
 
@@ -300,6 +302,17 @@ logmod_logger_set_callback(struct logmod_logger *logger,
  */
 LOGMOD_API logmod_err logmod_logger_set_options(struct logmod_logger *logger,
                                                 struct logmod_options options);
+
+/**
+ * @brief Set visibility of application ID and context ID in log messages
+ *
+ * @param logger Pointer to the logger
+ * @param show_app_id 1 to show application ID, 0 to hide
+ * @param show_context_id 1 to show context ID, 0 to hide
+ * @return LOGMOD_OK on success, error code on failure
+ */
+LOGMOD_API logmod_err logmod_logger_set_id_visibility(
+    struct logmod_logger *logger, int show_app_id, int show_context_id);
 
 /**
  * @brief Set quiet mode for a logger
@@ -677,6 +690,25 @@ logmod_set_options(struct logmod *logmod, struct logmod_options options)
 }
 
 LOGMOD_API logmod_err
+logmod_logger_set_id_visibility(struct logmod_logger *logger,
+                                int show_app_id,
+                                int show_context_id)
+{
+    struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
+    if (mut_logger == NULL) {
+        logmod_nlog(ERROR, NULL,
+                    ("Missing logger at logmod_logger_set_id_visibility()"),
+                    0);
+        return LOGMOD_BAD_PARAMETER;
+    }
+
+    mut_logger->options.show_application_id = show_app_id;
+    mut_logger->options.hide_context_id = !show_context_id;
+
+    return LOGMOD_OK;
+}
+
+LOGMOD_API logmod_err
 logmod_logger_set_data(struct logmod_logger *logger, void *user_data)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
@@ -890,6 +922,39 @@ _logmod_print(const struct logmod_logger *logger,
               const int color,
               FILE *output)
 {
+    const int show_apid = logger->options.show_application_id,
+              show_ctid = !logger->options.hide_context_id;
+
+    if (0 >= fprintf(output,
+                     LMT(color, "%02d:%02d:%02d", BLACK, REGULAR, BACKGROUND),
+                     time_info->tm_hour, time_info->tm_min, time_info->tm_sec))
+    {
+        logmod_nlog(ERROR, logger, ("Failed to write to output stream"), 0);
+        return LOGMOD_ERRNO;
+    }
+
+    if (show_apid) {
+        const struct logmod *logmod = LOGMOD_FROM_LOGGER(logger);
+        if (0 >= fprintf(output,
+                         LMT(color, " %s →", WHITE, REGULAR, FOREGROUND),
+                         logmod->application_id))
+        {
+            logmod_nlog(ERROR, logger, ("Failed to write to output stream"),
+                        0);
+            return LOGMOD_ERRNO;
+        }
+    }
+    if (show_ctid) {
+        if (0 >= fprintf(output,
+                         LMT(color, " %s →", WHITE, REGULAR, FOREGROUND),
+                         logger->context_id))
+        {
+            logmod_nlog(ERROR, logger, ("Failed to write to output stream"),
+                        0);
+            return LOGMOD_ERRNO;
+        }
+    }
+
     if (color) {
         if (0 >= fprintf(output,
                          LME("%s", %u, LOGMOD_STYLE_REGULAR,

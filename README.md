@@ -259,6 +259,7 @@ logmod_logger_set_options(logger, options);
 logmod_logger_set_quiet(logger, 0);     // Enable console output
 logmod_logger_set_color(logger, 1);     // Enable colored output
 logmod_logger_set_logfile(logger, fp);  // Set log file
+logmod_logger_set_id_visibility(logger, 1, 1);  // Show both application ID and context ID
 ```
 
 ### Cleanup
@@ -390,6 +391,35 @@ logmod_err logmod_logger_set_options(struct logmod_logger *logger, struct logmod
 Sets the options for the logger.
 - `logger`: Pointer to the logger structure.
 - `options`: Logger options structure.
+
+### `logmod_logger_set_id_visibility`
+
+```c
+logmod_err logmod_logger_set_id_visibility(struct logmod_logger *logger, int show_app_id, int show_context_id);
+```
+
+Controls the visibility of application ID and context ID in log messages.
+- `logger`: Pointer to the logger structure.
+- `show_app_id`: Set to 1 to show the application ID in log messages, 0 to hide it.
+- `show_context_id`: Set to 1 to show the context ID in log messages, 0 to hide it.
+Returns `LOGMOD_OK` on success, error code on failure.
+
+```c
+// Examples:
+// Show both application ID and context ID
+logmod_logger_set_id_visibility(logger, 1, 1);
+
+// Hide application ID, show context ID (default behavior)
+logmod_logger_set_id_visibility(logger, 0, 1);
+
+// Show application ID, hide context ID
+logmod_logger_set_id_visibility(logger, 1, 0);
+
+// Hide both application ID and context ID
+logmod_logger_set_id_visibility(logger, 0, 0);
+```
+
+This setting affects how messages are formatted when displayed in the console or written to a log file. Showing the application ID is useful in multi-application environments, while showing the context ID helps identify the source module within your application.
 
 ### `logmod_logger_set_quiet`
 
