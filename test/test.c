@@ -24,7 +24,7 @@ static const char *last_label = NULL;
 
 static logmod_err
 test_callback(const struct logmod_logger *logger,
-              const struct logmod_entry_info *info,
+              const struct logmod_info *info,
               const char *fmt,
               va_list args)
 {

@@ -115,8 +115,8 @@ struct logmod_label {
  * @param _visibility Visibility name (e.g., FOREGROUND, BACKGROUND)
  */
 #define LOGMOD_LABEL_COLOR(_color, _style, _visibility)                       \
-    LOGMOD_COLOR_##_color,                                                    \
-        LOGMOD_STYLE_##_style LOGMOD_VISIBILITY_##_visibility
+    LOGMOD_COLOR_##_color, LOGMOD_STYLE_##_style,                             \
+        LOGMOD_VISIBILITY_##_visibility
 
 /**
  * @brief Information about a log entry
