@@ -96,13 +96,27 @@ struct logmod_options {
 
 /**
  * @brief Label properties for a log level
+ *
+ * @see @ref LOGMOD_LABEL_COLOR
  */
 struct logmod_label {
     const char *const name; /**< Display name of the log level */
     const char *const color; /**< ANSI color code for this label */
     const char *const style; /**< ANSI style code for this label */
+    const char *const visibility; /**< ANSI visibility code for this label */
     const int output; /**< Output stream: 0 = stdout, 1 = stderr */
 };
+
+/**
+ * @brief Helper macro to define label color, style, and visibility at once
+ *
+ * @param _color Color name (e.g., RED, GREEN)
+ * @param _style Style name (e.g., BOLD, REGULAR)
+ * @param _visibility Visibility name (e.g., FOREGROUND, BACKGROUND)
+ */
+#define LOGMOD_LABEL_COLOR(_color, _style, _visibility)                       \
+    LOGMOD_COLOR_##_color,                                                    \
+        LOGMOD_STYLE_##_style LOGMOD_VISIBILITY_##_visibility
 
 /**
  * @brief Information about a log entry
@@ -457,22 +471,6 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
                                   ...) LOGMOD_PRINTF_LIKE(5, 6);
 
 /**
- * @brief Creates a color code by combining visibility and color values
- *
- * @param _color Color to use (e.g., RED, GREEN, BLUE)
- * @param _visibility Visibility mode (e.g., FOREGROUND, BACKGROUND)
- */
-#define LOGMOD_COLOR(_color, _visibility)                                     \
-    LOGMOD_VISIBILITY_##_visibility LOGMOD_COLOR_##_color
-
-/**
- * @brief Creates a style code from style name
- *
- * @param _style Style to use (e.g., REGULAR, BOLD, UNDERLINE)
- */
-#define LOGMOD_STYLE(_style) LOGMOD_STYLE_##_style
-
-/**
  * @brief Encodes text with ANSI colors and styles
  *
  * @param buf Text buffer to encode
@@ -584,18 +582,17 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
 
 static const struct logmod_label default_labels[__LOGMOD_LEVEL_MAX] = {
     /*[LOGMOD_LEVEL_TRACE]:*/
-    { "TRACE", LOGMOD_COLOR(BLUE, BACKGROUND_INTENSITY), LOGMOD_STYLE(REGULAR),
-      0 },
+    { "TRACE", LOGMOD_LABEL_COLOR(BLUE, REGULAR, BACKGROUND_INTENSITY), 0 },
     /*[LOGMOD_LEVEL_DEBUG]:*/
-    { "DEBUG", LOGMOD_COLOR(CYAN, BACKGROUND), LOGMOD_STYLE(REGULAR), 0 },
+    { "DEBUG", LOGMOD_LABEL_COLOR(CYAN, REGULAR, BACKGROUND), 0 },
     /*[LOGMOD_LEVEL_INFO]: */
-    { "INFO", LOGMOD_COLOR(GREEN, BACKGROUND), LOGMOD_STYLE(REGULAR), 0 },
+    { "INFO", LOGMOD_LABEL_COLOR(GREEN, REGULAR, BACKGROUND), 0 },
     /*[LOGMOD_LEVEL_WARN]: */
-    { "WARN", LOGMOD_COLOR(YELLOW, BACKGROUND), LOGMOD_STYLE(REGULAR), 1 },
+    { "WARN", LOGMOD_LABEL_COLOR(YELLOW, REGULAR, BACKGROUND), 1 },
     /*[LOGMOD_LEVEL_ERROR]:*/
-    { "ERROR", LOGMOD_COLOR(RED, BACKGROUND), LOGMOD_STYLE(REGULAR), 1 },
+    { "ERROR", LOGMOD_LABEL_COLOR(RED, REGULAR, BACKGROUND), 1 },
     /*[LOGMOD_LEVEL_FATAL]:*/
-    { "FATAL", LOGMOD_COLOR(MAGENTA, BACKGROUND), LOGMOD_STYLE(REGULAR), 1 },
+    { "FATAL", LOGMOD_LABEL_COLOR(MAGENTA, REGULAR, BACKGROUND), 1 },
 };
 
 /** @brief Get @ref logmod from any @ref logmod_logger */

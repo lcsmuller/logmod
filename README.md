@@ -164,8 +164,8 @@ enum {
 // Define custom log label properties (name, color, style, output stream)
 static const struct logmod_label custom_labels[] = {
     // Name, Color code, Style code, Output stream (0=stdout, 1=stderr)
-    { "HTTP", LOGMOD_COLOR(BLUE, FOREGROUND), LOGMOD_STYLE(REGULAR), 0 },
-    { "TEST", LOGMOD_COLOR(MAGENTA, INTENSITY), LOGMOD_STYLE(BOLD), 0 }
+    { "HTTP", LOGMOD_LABEL_COLOR(BLUE, REGULAR, FOREGROUND), 0 },
+    { "TEST", LOGMOD_LABEL_COLOR(MAGENTA, BOLD, INTENSITY),  0 }
 };
 
 // Register custom labels with your logger
