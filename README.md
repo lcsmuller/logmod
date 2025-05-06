@@ -1,9 +1,46 @@
 # LogMod
 
-LogMod is a simple logging module for C applications. It provides functionality to initialize a logging context, retrieve loggers, and log messages with different severity levels.
+LogMod is a lightweight, flexible logging library for C applications that supports multiple severity levels, custom labels, thread-safety, and colored output. It's designed to be easy to integrate with zero dynamic memory allocation, supporting both C89 and C99 standards through a single-header implementation.
+
+## Table of Contents
+- [Features](#features)
+- [Build](#build)
+- [Fallback Logger](#fallback-logger)
+- [Usage](#usage)
+  - [Initialization](#initialization)
+  - [Retrieving Loggers](#retrieving-loggers)
+  - [Logging Messages](#logging-messages)
+  - [Custom Log Labels](#custom-log-labels)
+  - [Color Support](#color-support)
+    - [ANSI Color Formatting](#ansi-color-formatting)
+  - [Thread Safety](#thread-safety)
+  - [Custom Logging Callback](#custom-logging-callback)
+  - [LogMod Options](#logmod-options)
+  - [Cleanup](#cleanup)
+- [C89 vs C99 Support](#c89-vs-c99-support)
+- [API Reference](#api-reference)
+  - [logmod_init](#logmod_init)
+  - [logmod_cleanup](#logmod_cleanup)
+  - [logmod_get_logger](#logmod_get_logger)
+  - [logmod_set_lock](#logmod_set_lock)
+  - [logmod_encode](#logmod_encode)
+  - [logmod_logger_set_callback](#logmod_logger_set_callback)
+  - [logmod_logger_set_data](#logmod_logger_set_data)
+  - [logmod_logger_set_options](#logmod_logger_set_options)
+  - [logmod_logger_set_id_visibility](#logmod_logger_set_id_visibility)
+  - [logmod_logger_set_quiet](#logmod_logger_set_quiet)
+  - [logmod_logger_set_color](#logmod_logger_set_color)
+  - [logmod_logger_set_logfile](#logmod_logger_set_logfile)
+  - [logmod_logger_get_counter](#logmod_logger_get_counter)
+  - [logmod_logger_get_label](#logmod_logger_get_label)
+  - [logmod_logger_get_level](#logmod_logger_get_level)
+  - [logmod_logger_set_level](#logmod_logger_set_level)
+  - [logmod_set_options](#logmod_set_options)
+- [License](#license)
 
 ## Features
 
+- Zero dynamic-allocation
 - Initialize logging context with application ID and logger table.
 - Retrieve or create loggers by context ID.
 - Log messages with different severity levels (TRACE, DEBUG, INFO, WARN, ERROR, FATAL).
@@ -28,6 +65,34 @@ LogMod is single-header-only library, so it includes additional macros for more 
 #include "logmod.h"
 ```
 
+## Fallback Logger
+
+LogMod provides a global fallback logger that is automatically used when:
+
+1. You pass `NULL` as the logger parameter to logging functions
+2. You want to log something before initializing your own logging context
+
+This allows for immediate logging without explicit setup:
+
+```c
+// Log using the fallback logger (no need to initialize anything)
+logmod_log(INFO, NULL, "This uses the fallback logger");
+```
+
+The fallback logger uses:
+- Application ID: Defined by `LOGMOD_FALLBACK_APPLICATION_ID` (defaults to "APPLICATION")
+- Context ID: Defined by `LOGMOD_FALLBACK_CONTEXT_ID` (defaults to "GLOBAL")
+
+You can customize these values by defining them before including logmod.h:
+
+```c
+#define LOGMOD_FALLBACK_APPLICATION_ID "MY_APP"
+#define LOGMOD_FALLBACK_CONTEXT_ID "DEFAULT"
+#include "logmod.h"
+```
+
+This feature is particularly useful during application startup or in code that doesn't have easy access to a logger instance.
+
 ## Usage
 
 ### Initialization
@@ -38,13 +103,15 @@ To initialize the logging context, use the `logmod_init` function:
 #include "logmod.h"
 
 struct logmod logmod;
-struct logmod_context table[5];
+struct logmod_logger table[5]; // Pre-allocated array to store logger instances
 
 logmod_err code = logmod_init(&logmod, "APPLICATION_ID", table, 5);
 if (code != LOGMOD_OK) {
     // Handle error
 }
 ```
+
+The `table` parameter is an array of `struct logmod_logger` that LogMod uses to store all logger instances. You need to pre-allocate this array with enough space for the maximum number of loggers your application will use (5 in this example). The `length` parameter specifies the capacity of this array.
 
 ### Retrieving Loggers
 
@@ -96,7 +163,7 @@ enum {
 
 // Define custom log label properties (name, color, style, output stream)
 static const struct logmod_label custom_labels[] = {
-// Name, Color code, Style code, Output stream (0=stdout, 1=stderr)
+    // Name, Color code, Style code, Output stream (0=stdout, 1=stderr)
     { "HTTP", LOGMOD_COLOR(BLUE, FOREGROUND), LOGMOD_STYLE(REGULAR), 0 },
     { "TEST", LOGMOD_COLOR(MAGENTA, INTENSITY), LOGMOD_STYLE(BOLD), 0 }
 };
@@ -603,34 +670,6 @@ logmod_set_options(&logmod, default_opts);
 struct logmod_logger *new_logger = logmod_get_logger(&logmod, "NEW_MODULE");
 // new_logger now has the default options set above
 ```
-
-### Fallback Logger
-
-LogMod provides a global fallback logger that is automatically used when:
-
-1. You pass `NULL` as the logger parameter to logging functions
-2. You want to log something before initializing your own logging context
-
-This allows for immediate logging without explicit setup:
-
-```c
-// Log using the fallback logger (no need to initialize anything)
-logmod_log(INFO, NULL, "This uses the fallback logger");
-```
-
-The fallback logger uses:
-- Application ID: Defined by `LOGMOD_FALLBACK_APPLICATION_ID` (defaults to "APPLICATION")
-- Context ID: Defined by `LOGMOD_FALLBACK_CONTEXT_ID` (defaults to "GLOBAL")
-
-You can customize these values by defining them before including logmod.h:
-
-```c
-#define LOGMOD_FALLBACK_APPLICATION_ID "MY_APP"
-#define LOGMOD_FALLBACK_CONTEXT_ID "DEFAULT"
-#include "logmod.h"
-```
-
-This feature is particularly useful during application startup or in code that doesn't have easy access to a logger instance.
 
 ## License
 
