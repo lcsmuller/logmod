@@ -395,7 +395,7 @@ LOGMOD_API const struct logmod_label *logmod_logger_get_label(
  *
  * @param logger Pointer to the logger
  * @param label Label name to look up
- * @return Level value, or -1 if not found, -2 if parameters invalid
+ * @return Level value, or LOGMOD_BAD_PARAMETER if invalid
  */
 LOGMOD_API long logmod_logger_get_level(const struct logmod_logger *logger,
                                         const char *const label);
@@ -600,6 +600,33 @@ static const struct logmod_label default_labels[__LOGMOD_LEVEL_MAX] = {
     ((struct logmod *)((char *)(_ctx)->counter                                \
                        - offsetof(struct logmod, counter)))
 
+#define _LOGMOD_EXPECT(_cond, _error, _return)                                \
+    do {                                                                      \
+        if (!(_cond)) {                                                       \
+            switch ((_error)) {                                               \
+            case LOGMOD_BAD_PARAMETER:                                        \
+                logmod_nlog(ERROR, NULL, ("Bad parameter: %s", #_cond), 1);   \
+                break;                                                        \
+            case LOGMOD_ERRNO:                                                \
+                logmod_nlog(ERROR, NULL,                                      \
+                            ("System error (check errno): %s", #_cond), 1);   \
+                break;                                                        \
+            default:                                                          \
+                logmod_nlog(ERROR, NULL, ("Unknown error: %s", #_cond), 1);   \
+                break;                                                        \
+            }                                                                 \
+            return (_return);                                                 \
+        }                                                                     \
+    } while (0)
+
+/**
+ * @brief Check if a condition is met and log an error message if not
+ *
+ * @param _cond Condition to check
+ * @param _error Error code to return if the condition is false
+ */
+#define LOGMOD_EXPECT(_cond, _error) _LOGMOD_EXPECT(_cond, _error, _error)
+
 static void
 _logmod_lock_noop(const struct logmod_logger *_, int __)
 {
@@ -614,27 +641,16 @@ logmod_init(struct logmod *logmod,
             unsigned length)
 {
     size_t *mut_real_length = (size_t *)&logmod->real_length;
-    if (!application_id || !*application_id) {
-        logmod_nlog(FATAL, NULL, ("Missing application_id at logmod_init()"),
-                    0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-    if (table == NULL) {
-        logmod_nlog(FATAL, NULL, ("Missing table at logmod_init()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-    if (length == 0) {
-        logmod_nlog(FATAL, NULL, ("Invalid length at logmod_init()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
+    LOGMOD_EXPECT(logmod != NULL, LOGMOD_BAD_PARAMETER);
+    LOGMOD_EXPECT(application_id && *application_id, LOGMOD_BAD_PARAMETER);
+    LOGMOD_EXPECT(table != NULL, LOGMOD_BAD_PARAMETER);
+    LOGMOD_EXPECT(length > 0, LOGMOD_BAD_PARAMETER);
     memset(logmod, 0, sizeof *logmod);
     memset(table, 0, length * sizeof *table);
-
     logmod->application_id = application_id;
     logmod->loggers = table;
     *mut_real_length = length;
     logmod->lock = _logmod_lock_noop;
-
     return LOGMOD_OK;
 }
 
@@ -644,26 +660,14 @@ logmod_cleanup(struct logmod *logmod)
     memset((void *)logmod->loggers, 0,
            logmod->real_length * sizeof *logmod->loggers);
     memset(logmod, 0, sizeof *logmod);
-
     return LOGMOD_OK;
 }
 
 LOGMOD_API logmod_err
 logmod_set_lock(struct logmod *logmod, logmod_lock lock)
 {
-    if (logmod == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logmod at logmod_logger_set_lock()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-    if (lock == NULL) {
-        logmod_nlog(ERROR, NULL, ("Missing lock at logmod_logger_set_lock()"),
-                    0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logmod != NULL, LOGMOD_BAD_PARAMETER);
     logmod->lock = lock;
-
     return LOGMOD_OK;
 }
 
@@ -672,14 +676,8 @@ logmod_set_options(struct logmod *logmod, struct logmod_options options)
 {
     struct logmod_options *mut_default_options =
         (struct logmod_options *)&logmod->default_options;
-    if (logmod == NULL) {
-        logmod_nlog(ERROR, NULL, ("Missing logmod at logmod_set_options()"),
-                    0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logmod != NULL, LOGMOD_BAD_PARAMETER);
     *mut_default_options = options;
-
     return LOGMOD_OK;
 }
 
@@ -689,16 +687,9 @@ logmod_logger_set_id_visibility(struct logmod_logger *logger,
                                 int show_context_id)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-    if (mut_logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_set_id_visibility()"),
-                    0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->options.show_application_id = show_app_id;
     mut_logger->options.hide_context_id = !show_context_id;
-
     return LOGMOD_OK;
 }
 
@@ -706,14 +697,8 @@ LOGMOD_API logmod_err
 logmod_logger_set_data(struct logmod_logger *logger, void *user_data)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-    if (logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_set_data()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->user_data = user_data;
-
     return LOGMOD_OK;
 }
 
@@ -724,23 +709,14 @@ logmod_logger_set_callback(struct logmod_logger *logger,
                            logmod_callback callback)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-    if (mut_logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_set_callback()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-    if (callback == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing callback at logmod_logger_set_callback()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->callback = callback;
     if (custom_labels != NULL) {
+        LOGMOD_EXPECT(callback != NULL, LOGMOD_BAD_PARAMETER);
+        LOGMOD_EXPECT(num_custom_labels > 0, LOGMOD_BAD_PARAMETER);
         mut_logger->custom_labels = custom_labels;
         mut_logger->num_custom_labels = num_custom_labels;
     }
-
     return LOGMOD_OK;
 }
 
@@ -749,14 +725,8 @@ logmod_logger_set_options(struct logmod_logger *logger,
                           struct logmod_options options)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-    if (mut_logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_set_options()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->options = options;
-
     return LOGMOD_OK;
 }
 
@@ -764,14 +734,8 @@ LOGMOD_API logmod_err
 logmod_logger_set_quiet(struct logmod_logger *logger, int quiet)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-    if (mut_logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_set_quiet()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->options.quiet = quiet;
-
     return LOGMOD_OK;
 }
 
@@ -779,14 +743,8 @@ LOGMOD_API logmod_err
 logmod_logger_set_color(struct logmod_logger *logger, int color)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-    if (mut_logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_set_color()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->options.color = color;
-
     return LOGMOD_OK;
 }
 
@@ -794,14 +752,8 @@ LOGMOD_API logmod_err
 logmod_logger_set_level(struct logmod_logger *logger, unsigned level)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-    if (mut_logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_set_level()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->options.level = level;
-
     return LOGMOD_OK;
 }
 
@@ -809,14 +761,8 @@ LOGMOD_API logmod_err
 logmod_logger_set_logfile(struct logmod_logger *logger, FILE *logfile)
 {
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-    if (mut_logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_set_logfile()"), 0);
-        return LOGMOD_BAD_PARAMETER;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->options.logfile = logfile;
-
     return LOGMOD_OK;
 }
 
@@ -840,16 +786,8 @@ logmod_logger_get_level(const struct logmod_logger *logger,
                         const char *const label)
 {
     size_t i;
-
-    if (logger == NULL) {
-        logmod_nlog(ERROR, NULL, ("Missing logger at logmod_get_level()"), 0);
-        return -2;
-    }
-    if (label == NULL) {
-        logmod_nlog(ERROR, logger, ("Missing label at logmod_get_level()"), 0);
-        return -2;
-    }
-
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
+    LOGMOD_EXPECT(label != NULL, LOGMOD_BAD_PARAMETER);
     for (i = 0; i < __LOGMOD_LEVEL_MAX; ++i) {
         if (strcmp(label, default_labels[i].name) == 0) {
             return (long)i;
@@ -860,7 +798,7 @@ logmod_logger_get_level(const struct logmod_logger *logger,
             return (long)(i + LOGMOD_LEVEL_CUSTOM);
         }
     }
-    return -1;
+    return LOGMOD_BAD_PARAMETER;
 }
 
 LOGMOD_API long
@@ -868,17 +806,10 @@ logmod_logger_get_counter(const struct logmod_logger *logger)
 {
     struct logmod *logmod = LOGMOD_FROM_LOGGER(logger);
     long counter;
-
-    if (logger == NULL) {
-        logmod_nlog(ERROR, NULL,
-                    ("Missing logger at logmod_logger_get_counter()"), 0);
-        return -1;
-    }
-
+    LOGMOD_EXPECT(logmod != NULL, LOGMOD_BAD_PARAMETER);
     logmod->lock(logger, 1);
     counter = logmod->counter;
     logmod->lock(logger, 0);
-
     return counter;
 }
 
@@ -889,21 +820,20 @@ logmod_get_logger(struct logmod *logmod, const char *const context_id)
         (struct logmod_mut_logger *)logmod->loggers;
     size_t *mut_length = (size_t *)&logmod->length;
     size_t i;
-
+    _LOGMOD_EXPECT(logmod != NULL, LOGMOD_BAD_PARAMETER, NULL);
+    _LOGMOD_EXPECT(logmod->loggers != NULL, LOGMOD_BAD_PARAMETER, NULL);
+    _LOGMOD_EXPECT(context_id != NULL, LOGMOD_BAD_PARAMETER, NULL);
     for (i = 0; i < logmod->length; ++i) {
         if (0 == strcmp(logmod->loggers[i].context_id, context_id))
             return (struct logmod_logger *)&logmod->loggers[i];
     }
-
     if (logmod->length >= logmod->real_length) {
         return NULL;
     }
-
     memset(&mut_loggers[logmod->length], 0, sizeof *mut_loggers);
     mut_loggers[logmod->length].context_id = context_id;
     mut_loggers[logmod->length].counter = &logmod->counter;
     mut_loggers[logmod->length].options = logmod->default_options;
-
     return (struct logmod_logger *)&logmod->loggers[(*mut_length)++];
 }
 
@@ -917,71 +847,48 @@ _logmod_print(const struct logmod_logger *logger,
 {
     const int show_apid = logger->options.show_application_id,
               show_ctid = !logger->options.hide_context_id;
-
-    if (0 >= fprintf(output,
-                     LMT(color, "%02d:%02d:%02d", BLACK, REGULAR, BACKGROUND),
-                     info->time_info->tm_hour, info->time_info->tm_min,
-                     info->time_info->tm_sec))
-    {
-        logmod_nlog(ERROR, logger, ("Failed to write to output stream"), 0);
-        return LOGMOD_ERRNO;
-    }
-
+    LOGMOD_EXPECT(
+        fprintf(output,
+                LMT(color, "%02d:%02d:%02d", BLACK, REGULAR, BACKGROUND),
+                info->time_info->tm_hour, info->time_info->tm_min,
+                info->time_info->tm_sec)
+            >= 0,
+        LOGMOD_ERRNO);
     if (show_apid) {
         const struct logmod *logmod = LOGMOD_FROM_LOGGER(logger);
-        if (0 >= fprintf(output,
-                         LMT(color, " %s →", WHITE, REGULAR, FOREGROUND),
-                         logmod->application_id))
-        {
-            logmod_nlog(ERROR, logger, ("Failed to write to output stream"),
-                        0);
-            return LOGMOD_ERRNO;
-        }
+        LOGMOD_EXPECT(fprintf(output,
+                              LMT(color, " %s »", WHITE, REGULAR, FOREGROUND),
+                              logmod->application_id)
+                          >= 0,
+                      LOGMOD_ERRNO);
     }
     if (show_ctid) {
-        if (0 >= fprintf(output,
-                         LMT(color, " %s →", WHITE, REGULAR, FOREGROUND),
-                         logger->context_id))
-        {
-            logmod_nlog(ERROR, logger, ("Failed to write to output stream"),
-                        0);
-            return LOGMOD_ERRNO;
-        }
+        LOGMOD_EXPECT(fprintf(output,
+                              LMT(color, " %s »", WHITE, REGULAR, FOREGROUND),
+                              logger->context_id)
+                          >= 0,
+                      LOGMOD_ERRNO);
     }
-
     if (color) {
-        if (0 >= fprintf(output,
-                         LME("%s", "%s", LOGMOD_STYLE_REGULAR,
-                             LOGMOD_VISIBILITY_FOREGROUND)
-                             LMS(" %s:%d", YELLOW, REGULAR, FOREGROUND) ": ",
-                         info->label->color, info->label->name, info->filename,
-                         info->line))
-        {
-            logmod_nlog(ERROR, logger, ("Failed to write to output stream"),
-                        0);
-            return LOGMOD_ERRNO;
-        }
+        LOGMOD_EXPECT(
+            fprintf(output,
+                    LME(" %s", "%s", LOGMOD_STYLE_REGULAR,
+                        LOGMOD_VISIBILITY_FOREGROUND)
+                        LMS(" %s:%d", YELLOW, REGULAR, FOREGROUND) ": ",
+                    info->label->color, info->label->name, info->filename,
+                    info->line)
+                >= 0,
+            LOGMOD_ERRNO);
     }
-    else if (0 >= fprintf(output, " %s %s:%d: ", info->label->name,
-                          info->filename, info->line))
-    {
-        logmod_nlog(ERROR, logger, ("Failed to write to output stream"), 0);
-        return LOGMOD_ERRNO;
+    else {
+        LOGMOD_EXPECT(fprintf(output, " %s %s:%d: ", info->label->name,
+                              info->filename, info->line)
+                          >= 0,
+                      LOGMOD_ERRNO);
     }
-
-    if (0 >= vfprintf(output, fmt, args)) {
-        logmod_nlog(ERROR, logger, ("Failed to write to output stream"), 0);
-        return LOGMOD_ERRNO;
-    }
-    if (putc('\n', output) == EOF) {
-        logmod_nlog(ERROR, logger, ("Failed to write to output stream"), 0);
-        return LOGMOD_ERRNO;
-    }
-    if (fflush(output) == EOF) {
-        logmod_nlog(ERROR, logger, ("Failed to write to output stream"), 0);
-        return LOGMOD_ERRNO;
-    }
-
+    LOGMOD_EXPECT(vfprintf(output, fmt, args) >= 0, LOGMOD_ERRNO);
+    LOGMOD_EXPECT(putc('\n', output) != EOF, LOGMOD_ERRNO);
+    LOGMOD_EXPECT(fflush(output) != EOF, LOGMOD_ERRNO);
     return LOGMOD_OK;
 }
 
@@ -1025,7 +932,6 @@ _logmod_info_populate(const struct logmod_logger *logger,
     const struct logmod_label **mut_label =
         (const struct logmod_label **)&info.label;
     const struct tm **mut_time_info = (const struct tm **)&info.time_info;
-
     *mut_line = line;
     *mut_filename = filename;
     *mut_level = level;
@@ -1033,7 +939,6 @@ _logmod_info_populate(const struct logmod_logger *logger,
     logmod->lock(logger, 1);
     *mut_time_info = localtime(&time_raw);
     logmod->lock(logger, 0);
-
     return info;
 }
 
@@ -1051,7 +956,6 @@ _logmod_log(const struct logmod_logger *logger,
         _logmod_info_populate(logger, line, filename, level);
     logmod_err code = LOGMOD_OK_CONTINUE;
     va_list args;
-
     if (logger->callback) {
         va_start(args, fmt);
         if ((code = logger->callback(logger, &info, fmt, args)) < LOGMOD_OK) {
@@ -1059,7 +963,6 @@ _logmod_log(const struct logmod_logger *logger,
         }
         va_end(args);
     }
-
     if (level >= logger->options.level && code == LOGMOD_OK_CONTINUE) {
         if (!logger->options.quiet || level == LOGMOD_LEVEL_FATAL) {
             va_start(args, fmt);
@@ -1072,22 +975,21 @@ _logmod_log(const struct logmod_logger *logger,
             }
             va_end(args);
         }
-
         if (logger->options.logfile) {
             va_start(args, fmt);
             code = _logmod_print(logger, &info, fmt, args, 0,
                                  logger->options.logfile);
         }
     }
-
 _end:
     logmod->lock(logger, 1);
     ++logmod->counter;
     logmod->lock(logger, 0);
-
     va_end(args);
     return code;
 }
+
+#undef LOGMOD_EXPECT
 
 #endif /* LOGMOD_HEADER */
 

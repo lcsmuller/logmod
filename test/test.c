@@ -373,14 +373,14 @@ should_get_level_by_label_name(void)
     ASSERT_EQ(LOGMOD_LEVEL_TESTMODE, level);
 
     level = logmod_logger_get_level(logger, "NONEXISTENT");
-    ASSERT_EQ(-1, level);
+    ASSERT_EQ(LOGMOD_BAD_PARAMETER, level);
 
     freopen("/dev/null", "w", stderr); /* disable stderr */
     level = logmod_logger_get_level(NULL, "INFO");
-    ASSERT_EQ(-2, level);
+    ASSERT_EQ(LOGMOD_BAD_PARAMETER, level);
 
     level = logmod_logger_get_level(logger, NULL);
-    ASSERT_EQ(-2, level);
+    ASSERT_EQ(LOGMOD_BAD_PARAMETER, level);
     freopen("/dev/tty", "w", stderr); /* restore stderr */
 
     PASS();

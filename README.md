@@ -599,7 +599,7 @@ long logmod_logger_get_level(const struct logmod_logger *logger, const char *con
 Retrieves the level value for a specified label name. This is the reverse operation of `logmod_logger_get_label()`.
 - `logger`: Pointer to the logger structure.
 - `label`: The label name to search for (e.g., "INFO", "DEBUG", "HTTP").
-Returns the level value as a long integer, or -1 if the label is not found or parameters are invalid.
+Returns the level value as a long integer, or LOGMOD_BAD_PARAMETER if invalid.
 
 This function is useful for converting label names to level values:
 
@@ -614,11 +614,6 @@ if (info_level >= 0) {
 long http_level = logmod_logger_get_level(logger, "HTTP");
 if (http_level >= 0) {
     printf("HTTP level value: %ld\n", http_level);  // Value depends on your custom levels
-}
-
-// Use the result for conditional logic
-if (logmod_logger_get_level(logger, "WARN") == logmod_logger_get_level(logger, "ERROR")) {
-    // Handle case where WARN and ERROR have the same level
 }
 ```
 
