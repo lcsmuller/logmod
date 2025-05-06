@@ -337,24 +337,6 @@ Sets the lock function for shared resources between loggers.
 - `logmod`: Pointer to the logging context structure.
 - `lock`: Lock function pointer of type `logmod_lock`.
 
-### `logmod_encode`
-
-```c
-const char *logmod_encode(const struct logmod_logger *logger,
-                          const char *buf,
-                          enum logmod_colors color,
-                          enum logmod_styles style,
-                          enum logmod_visibility visibility);
-```
-
-Encodes a string with ANSI color formatting.
-- `logger`: Pointer to the logger structure.
-- `buf`: String to encode.
-- `color`: Color value (e.g., RED instead of LOGMOD_COLOR_RED).
-- `style`: Text style (e.g., BOLD instead of LOGMOD_STYLE_BOLD).
-- `visibility`: Foreground/background visibility (e.g., FOREGROUND instead of LOGMOD_VISIBILITY_FOREGROUND).
-Returns the encoded string, or the original string if colors are disabled.
-
 ### `logmod_logger_set_callback`
 
 ```c
