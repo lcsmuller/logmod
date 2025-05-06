@@ -8,17 +8,15 @@
 #include <fcntl.h>
 
 #define TABLE_LENGTH 5
-#define LL           LOGMOD_LOGGER
 
 enum { LOGMOD_LEVEL_HTTP = LOGMOD_LEVEL_CUSTOM, LOGMOD_LEVEL_TESTMODE };
 
-#define __COLOR(_color, _visibility)                                          \
-    LOGMOD_COLOR_##_color + LOGMOD_VISIBILITY_##_visibility
 static const struct logmod_label custom_labels[] = {
-    /*[LOGMOD_LEVEL_HTTP]:*/ { "HTTP", __COLOR(BLUE, FOREGROUND), 0 },
-    /*[LOGMOD_LEVEL_TEST]:*/ { "TEST", __COLOR(MAGENTA, INTENSITY), 0 }
+    /*[LOGMOD_LEVEL_HTTP]:*/
+    { "HTTP", LOGMOD_COLOR(BLUE, FOREGROUND), LOGMOD_STYLE(REGULAR), 0 },
+    /*[LOGMOD_LEVEL_TEST]:*/
+    { "TEST", LOGMOD_COLOR(MAGENTA, INTENSITY), LOGMOD_STYLE(REGULAR), 0 }
 };
-#undef __COLOR
 
 static int callback_was_called = 0;
 static const char *last_message = NULL;
@@ -388,30 +386,21 @@ should_get_level_by_label_name(void)
     PASS();
 }
 
+#define TEST_STRING "test string"
 TEST
 should_encode_ansi_string(void)
 {
     static const char *const application_id = "APPLICATION_A";
-    static const char *const test_string = "test string";
     struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
     const char *result;
-    char buffer[100];
-    int style, color;
 
     logmod_init(&logmod, application_id, table, sizeof(table) / sizeof *table);
     logger = logmod_get_logger(&logmod, "MODULE_A");
     logmod_logger_set_color(logger, 1);
 
-    result = logmod_encode(logger, test_string, RED, BOLD, FOREGROUND);
-    ASSERT_NEQ(NULL, result);
-    ASSERT_NEQ(test_string, result);
-
-    ASSERT_EQ(3, sscanf(result, "\x1b[%d;%dm%[^\x1b]\x1b[0m", &style, &color,
-                        buffer));
-    ASSERT_STR_EQm(buffer, test_string, buffer);
-    ASSERT_EQ(LOGMOD_STYLE_BOLD, style);
-    ASSERT_EQ(LOGMOD_COLOR_RED + LOGMOD_VISIBILITY_FOREGROUND, color);
+    result = LME(logger, TEST_STRING, RED, BOLD, FOREGROUND);
+    ASSERT_STR_EQm(result, "\x1b[1;31mtest string\x1b[0m", result);
 
     PASS();
 }
@@ -420,7 +409,6 @@ TEST
 should_return_original_string_when_color_disabled(void)
 {
     static const char *const application_id = "APPLICATION_A";
-    static const char *const test_string = "test string";
     struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
     const char *result;
@@ -429,9 +417,8 @@ should_return_original_string_when_color_disabled(void)
     logger = logmod_get_logger(&logmod, "MODULE_A");
     logmod_logger_set_color(logger, 0);
 
-    result = logmod_encode(logger, test_string, RED, BOLD, FOREGROUND);
-
-    ASSERT_MEM_EQm(result, test_string, result, strlen(test_string) + 1);
+    result = LME(logger, TEST_STRING, RED, BOLD, FOREGROUND);
+    ASSERT_MEM_EQm(result, TEST_STRING, result, sizeof(TEST_STRING) - 1);
 
     PASS();
 }
@@ -440,7 +427,6 @@ TEST
 should_handle_different_ansi_visibilities(void)
 {
     static const char *const application_id = "APPLICATION_A";
-    static const char *const test_string = "test string";
     struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
     const char *result;
@@ -449,16 +435,13 @@ should_handle_different_ansi_visibilities(void)
     logger = logmod_get_logger(&logmod, "MODULE_A");
     logmod_logger_set_color(logger, 1);
 
-    result = logmod_encode(logger, test_string, GREEN, REGULAR, FOREGROUND);
-    ASSERT_NEQ(NULL, result);
+    result = LME(logger, TEST_STRING, GREEN, REGULAR, FOREGROUND);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[0;32m"));
 
-    result = logmod_encode(logger, test_string, BLUE, REGULAR, BACKGROUND);
-    ASSERT_NEQ(NULL, result);
+    result = LME(logger, TEST_STRING, BLUE, REGULAR, BACKGROUND);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[0;44m"));
 
-    result = logmod_encode(logger, test_string, RED, REGULAR, INTENSITY);
-    ASSERT_NEQ(NULL, result);
+    result = LME(logger, TEST_STRING, RED, REGULAR, INTENSITY);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[0;91m"));
 
     PASS();
@@ -468,7 +451,6 @@ TEST
 should_handle_different_ansi_styles(void)
 {
     static const char *const application_id = "APPLICATION_A";
-    static const char *const test_string = "test string";
     struct logmod_logger table[TABLE_LENGTH], *logger;
     struct logmod logmod;
     const char *result;
@@ -477,20 +459,21 @@ should_handle_different_ansi_styles(void)
     logger = logmod_get_logger(&logmod, "MODULE_A");
     logmod_logger_set_color(logger, 1);
 
-    result = logmod_encode(logger, test_string, CYAN, REGULAR, FOREGROUND);
+    result = LME(logger, TEST_STRING, CYAN, REGULAR, FOREGROUND);
     ASSERT_NEQ(NULL, result);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[0;36m"));
 
-    result = logmod_encode(logger, test_string, CYAN, BOLD, FOREGROUND);
+    result = LME(logger, TEST_STRING, CYAN, BOLD, FOREGROUND);
     ASSERT_NEQ(NULL, result);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[1;36m"));
 
-    result = logmod_encode(logger, test_string, CYAN, UNDERLINE, FOREGROUND);
+    result = LME(logger, TEST_STRING, CYAN, UNDERLINE, FOREGROUND);
     ASSERT_NEQ(NULL, result);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[4;36m"));
 
     PASS();
 }
+#undef TEST_STRING
 
 TEST
 should_use_fallback_logger(void)

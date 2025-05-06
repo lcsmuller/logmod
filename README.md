@@ -94,10 +94,11 @@ enum {
     LOGMOD_LEVEL_TESTMODE
 };
 
-// Define custom log label properties (name, color, output stream)
+// Define custom log label properties (name, color, style, output stream)
 static const struct logmod_label custom_labels[] = {
-    { "HTTP", LOGMOD_COLOR_BLUE + LOGMOD_VISIBILITY_FOREGROUND, 0 },
-    { "TEST", LOGMOD_COLOR_MAGENTA + LOGMOD_VISIBILITY_INTENSITY, 0 }
+// Name, Color code, Style code, Output stream (0=stdout, 1=stderr)
+    { "HTTP", LOGMOD_COLOR(BLUE, FOREGROUND), LOGMOD_STYLE(REGULAR), 0 },
+    { "TEST", LOGMOD_COLOR(MAGENTA, INTENSITY), LOGMOD_STYLE(BOLD), 0 }
 };
 
 // Register custom labels with your logger
@@ -139,28 +140,36 @@ logmod_logger_set_color(logger, 0);
 
 #### ANSI Color Formatting
 
-LogMod provides a utility for ANSI color formatting of arbitrary text:
+LogMod provides macros for ANSI color formatting of arbitrary text:
 
 ```c
-// Encode text with color (red, bold, foreground)
-const char *colored_text = logmod_encode(logger, "This text will be red and bold",
-                                         RED, BOLD, FOREGROUND);
+// Dynamic color formatting (applies color only if logger enables it)
+logmod_logger_set_color(logger, 1); // Enable color for this logger
+printf("%s World!\n", LME(logger, "Hello", RED, BOLD, FOREGROUND));
+// Static color formatting (always applies color)
+printf(LMES("Hello", GREEN, UNDERLINE, FOREGROUND) " World!\n");
 ```
+Should print to console, respectively:
+
+![terminal output](docs/terminal.png)
+
+
+The `LME` macro (shorthand for `LOGMOD_ENCODE`) automatically applies the logger's color settings, while `LMES` (shortdhand for `LOGMOD_ENCODE_STATIC`) applies the specified color regardless of the logger's settings.
 
 Available colors, styles, and visibility options:
 
-```c
-// Colors (used without the LOGMOD_COLOR_ prefix in the macro)
+```console
+// Colors (used without the LOGMOD_COLOR_ prefix)
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE
 
-// Styles (used without the LOGMOD_STYLE_ prefix in the macro)
+// Styles (used without the LOGMOD_STYLE_ prefix)
 REGULAR, BOLD, UNDERLINE, STRIKETHROUGH
 
-// Visibility (used without the LOGMOD_VISIBILITY_ prefix in the macro)
+// Visibility (used without the LOGMOD_VISIBILITY_ prefix)
 FOREGROUND, BACKGROUND, INTENSITY, BACKGROUND_INTENSITY
 ```
 
-The `logmod_encode` macro automatically adds the necessary prefixes, so you can use the enum values directly without their prefixes.
+The color formatting macros automatically add the necessary prefixes, so you can use the enum values directly without their prefixes.
 
 ### Thread Safety
 

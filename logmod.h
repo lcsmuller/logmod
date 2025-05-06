@@ -59,6 +59,7 @@ struct logmod_options {
 struct logmod_label {
     const char *const name;
     const unsigned color;
+    const unsigned style;
     const int output; /* 0 = stdout, 1 = stderr */
 };
 
@@ -82,30 +83,24 @@ typedef logmod_err (*logmod_callback)(const struct logmod_logger *logger,
                                       const char *fmt,
                                       va_list args);
 
-enum logmod_colors {
-    LOGMOD_COLOR_BLACK = 0,
-    LOGMOD_COLOR_RED = 1,
-    LOGMOD_COLOR_GREEN = 2,
-    LOGMOD_COLOR_YELLOW = 3,
-    LOGMOD_COLOR_BLUE = 4,
-    LOGMOD_COLOR_MAGENTA = 5,
-    LOGMOD_COLOR_CYAN = 6,
-    LOGMOD_COLOR_WHITE = 7
-};
+#define LOGMOD_COLOR_BLACK   0
+#define LOGMOD_COLOR_RED     1
+#define LOGMOD_COLOR_GREEN   2
+#define LOGMOD_COLOR_YELLOW  3
+#define LOGMOD_COLOR_BLUE    4
+#define LOGMOD_COLOR_MAGENTA 5
+#define LOGMOD_COLOR_CYAN    6
+#define LOGMOD_COLOR_WHITE   7
 
-enum logmod_styles {
-    LOGMOD_STYLE_REGULAR = 0,
-    LOGMOD_STYLE_BOLD = 1,
-    LOGMOD_STYLE_UNDERLINE = 4,
-    LOGMOD_STYLE_STRIKETHROUGH = 9
-};
+#define LOGMOD_STYLE_REGULAR       0
+#define LOGMOD_STYLE_BOLD          1
+#define LOGMOD_STYLE_UNDERLINE     4
+#define LOGMOD_STYLE_STRIKETHROUGH 9
 
-enum logmod_visibility {
-    LOGMOD_VISIBILITY_FOREGROUND = 30,
-    LOGMOD_VISIBILITY_BACKGROUND = 40,
-    LOGMOD_VISIBILITY_INTENSITY = 90,
-    LOGMOD_VISIBILITY_BACKGROUND_INTENSITY = 100
-};
+#define LOGMOD_VISIBILITY_FOREGROUND           3
+#define LOGMOD_VISIBILITY_BACKGROUND           4
+#define LOGMOD_VISIBILITY_INTENSITY            9
+#define LOGMOD_VISIBILITY_BACKGROUND_INTENSITY 10
 
 #define __LOGMOD_LOGGER_ATTRS(_qualifier)                                     \
     const char *context_id;                                                   \
@@ -114,11 +109,7 @@ enum logmod_visibility {
     _qualifier logmod_callback callback;                                      \
     _qualifier void *user_data;                                               \
     const struct logmod_label *_qualifier custom_labels;                      \
-    _qualifier size_t num_custom_labels;                                      \
-    _qualifier struct {                                                       \
-        _qualifier char *content;                                             \
-        _qualifier size_t length;                                             \
-    } buf
+    _qualifier size_t num_custom_labels
 
 #define __BLANK
 struct logmod_mut_logger {
@@ -210,15 +201,71 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
                                   const char *fmt,
                                   ...) LOGMOD_PRINTF_LIKE(5, 6);
 
-#define logmod_encode(_logger, _buf, _color, _style, _visibility)             \
-    _logmod_encode(_logger, _buf, LOGMOD_COLOR_##_color,                      \
-                   LOGMOD_STYLE_##_style, LOGMOD_VISIBILITY_##_visibility)
+#define __JOIN(_x, _y)            _x##_y
+#define __EXPAND_AND_JOIN(_x, _y) __JOIN(_x, _y)
+#define __STR(_x)                 #_x
 
-LOGMOD_API const char *_logmod_encode(const struct logmod_logger *logger,
-                                      const char *buf,
-                                      enum logmod_colors color,
-                                      enum logmod_styles style,
-                                      enum logmod_visibility visibility);
+/**
+ * @brief Creates a color code by combining visibility and color values
+ *
+ * @param _color Color to use (e.g., RED, GREEN, BLUE)
+ * @param _visibility Visibility mode (e.g., FOREGROUND, BACKGROUND)
+ */
+#define LOGMOD_COLOR(_color, _visibility)                                     \
+    __EXPAND_AND_JOIN(LOGMOD_VISIBILITY_##_visibility, LOGMOD_COLOR_##_color)
+
+/**
+ * @brief Creates a style code from style name
+ *
+ * @param _style Style to use (e.g., REGULAR, BOLD, UNDERLINE)
+ */
+#define LOGMOD_STYLE(_style) __JOIN(LOGMOD_STYLE_, _style)
+
+/**
+ * @brief Internal macro for ANSI color encoding
+ *
+ * @param _buf Text buffer to encode
+ * @param _color Color code
+ * @param _style Style code
+ * @param _visibility Visibility code
+ */
+#define _LOGMOD_ENCODE(_buf, _color, _style, _visibility)                     \
+    "\x1b[" __STR(_style) ";" __STR(_visibility) __STR(_color) "m" _buf       \
+                                                               "\x1b[0m"
+
+/**
+ * @brief Static encoding of text with ANSI colors (compile-time)
+ *
+ * @param buf The text to encode
+ * @param _color Color name (e.g., RED, GREEN)
+ * @param _style Style name (e.g., BOLD, REGULAR)
+ * @param _visibility Visibility name (e.g., FOREGROUND, BACKGROUND)
+ */
+#define LOGMOD_ENCODE_STATIC(buf, _color, _style, _visibility)                \
+    _LOGMOD_ENCODE(buf, LOGMOD_COLOR_##_color, LOGMOD_STYLE_##_style,         \
+                   LOGMOD_VISIBILITY_##_visibility)
+
+/**
+ * @brief Dynamic encoding of text with ANSI colors (respects logger color
+ * setting)
+ *
+ * @param _logger The logger instance to check for color enabled setting
+ * @param buf The text to encode
+ * @param _color Color name (e.g., RED, GREEN)
+ * @param _style Style name (e.g., BOLD, REGULAR)
+ * @param _visibility Visibility name (e.g., FOREGROUND, BACKGROUND)
+ * @return Colored text if colors enabled, or original text otherwise
+ */
+#define LOGMOD_ENCODE(_logger, buf, _color, _style, _visibility)              \
+    ((_logger)->options.color                                                 \
+         ? _LOGMOD_ENCODE(buf, LOGMOD_COLOR_##_color, LOGMOD_STYLE_##_style,  \
+                          LOGMOD_VISIBILITY_##_visibility)                    \
+         : buf)
+
+/** @brief Shorthand for LOGMOD_ENCODE_STATIC */
+#define LMES LOGMOD_ENCODE_STATIC
+/** @brief Shorthand for LOGMOD_ENCODE */
+#define LME LOGMOD_ENCODE
 
 #define LOGMOD_SPREAD_TUPLE_0(_fmt)                 _fmt
 #define LOGMOD_SPREAD_TUPLE_1(_fmt, _1)             _fmt, _1
@@ -267,23 +314,21 @@ LOGMOD_API const char *_logmod_encode(const struct logmod_logger *logger,
 
 #include "logmod.h"
 
-#define __COLOR(_color, _visibility)                                          \
-    LOGMOD_COLOR_##_color + LOGMOD_VISIBILITY_##_visibility
 static const struct logmod_label default_labels[__LOGMOD_LEVEL_MAX] = {
-    /*[LOGMOD_LEVEL_TRACE]:*/ { "TRACE", __COLOR(BLUE, BACKGROUND_INTENSITY),
-                                0 },
+    /*[LOGMOD_LEVEL_TRACE]:*/
+    { "TRACE", LOGMOD_COLOR(BLUE, BACKGROUND_INTENSITY), LOGMOD_STYLE(REGULAR),
+      0 },
     /*[LOGMOD_LEVEL_DEBUG]:*/
-    { "DEBUG", __COLOR(CYAN, BACKGROUND), 0 },
+    { "DEBUG", LOGMOD_COLOR(CYAN, BACKGROUND), LOGMOD_STYLE(REGULAR), 0 },
     /*[LOGMOD_LEVEL_INFO]: */
-    { "INFO", __COLOR(GREEN, BACKGROUND), 0 },
+    { "INFO", LOGMOD_COLOR(GREEN, BACKGROUND), LOGMOD_STYLE(REGULAR), 0 },
     /*[LOGMOD_LEVEL_WARN]: */
-    { "WARN", __COLOR(YELLOW, BACKGROUND), 1 },
+    { "WARN", LOGMOD_COLOR(YELLOW, BACKGROUND), LOGMOD_STYLE(REGULAR), 1 },
     /*[LOGMOD_LEVEL_ERROR]:*/
-    { "ERROR", __COLOR(RED, BACKGROUND), 1 },
+    { "ERROR", LOGMOD_COLOR(RED, BACKGROUND), LOGMOD_STYLE(REGULAR), 1 },
     /*[LOGMOD_LEVEL_FATAL]:*/
-    { "FATAL", __COLOR(MAGENTA, BACKGROUND), 1 },
+    { "FATAL", LOGMOD_COLOR(MAGENTA, BACKGROUND), LOGMOD_STYLE(REGULAR), 1 },
 };
-#undef __COLOR
 
 /** @brief Get @ref logmod from any @ref logmod_logger */
 #define LOGMOD_FROM_LOGGER(_ctx)                                              \
@@ -331,12 +376,6 @@ logmod_init(struct logmod *logmod,
 LOGMOD_API logmod_err
 logmod_cleanup(struct logmod *logmod)
 {
-    size_t i;
-    for (i = 0; i < logmod->length; ++i) {
-        const struct logmod_mut_logger *mut_logger =
-            (struct logmod_mut_logger *)&logmod->loggers[i];
-        if (mut_logger->buf.content) free(mut_logger->buf.content);
-    }
     memset((void *)logmod->loggers, 0,
            logmod->real_length * sizeof *logmod->loggers);
     memset(logmod, 0, sizeof *logmod);
@@ -643,7 +682,6 @@ static struct logmod_logger g_loggers[] = {
         NULL,
         default_labels,
         0,
-        { NULL, 0 },
     },
 };
 /** global logmod used as a fallback */
@@ -723,45 +761,6 @@ _logmod_log(const struct logmod_logger *logger,
     logmod->lock(logger, 0);
 
     return code;
-}
-
-LOGMOD_API const char *
-_logmod_encode(const struct logmod_logger *logger,
-               const char *buf,
-               enum logmod_colors color,
-               enum logmod_styles style,
-               enum logmod_visibility visibility)
-{
-    static const size_t ansi_extra_bytes = sizeof("\x1b[-;---m\x1b[0m");
-    const size_t expected_new_length = strlen(buf) + ansi_extra_bytes;
-    struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
-
-    if (logger == NULL) {
-        logmod_nlog(ERROR, NULL, ("Missing logger at logmod_encode()"), 0);
-        return NULL;
-    }
-    if (!logger->options.color) {
-        return buf;
-    }
-
-    if (logger->buf.length < expected_new_length) {
-        void *tmp = realloc(mut_logger->buf.content, expected_new_length);
-        if (tmp == NULL) {
-            logmod_nlog(ERROR, logger, ("Out of memory at logmod_encode()"),
-                        0);
-            return NULL;
-        }
-        mut_logger->buf.content = tmp;
-        mut_logger->buf.length = expected_new_length;
-    }
-    if (0 >= sprintf(mut_logger->buf.content, "\x1b[%u;%um%s\x1b[0m", style,
-                     color + visibility, buf))
-    {
-        logmod_nlog(ERROR, logger,
-                    ("Error: sprintf() failure at logmod_encode()"), 0);
-        return NULL;
-    }
-    return logger->buf.content;
 }
 
 #endif /* LOGMOD_HEADER */
