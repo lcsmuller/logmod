@@ -145,16 +145,20 @@ LogMod provides macros for ANSI color formatting of arbitrary text:
 ```c
 // Dynamic color formatting (applies color only if logger enables it)
 logmod_logger_set_color(logger, 1); // Enable color for this logger
-printf("%s World!\n", LME(logger, "Hello", RED, BOLD, FOREGROUND));
+printf("%s World!\n", LML(logger, "Hello", RED, BOLD, FOREGROUND));
 // Static color formatting (always applies color)
-printf(LMES("Hello", GREEN, UNDERLINE, FOREGROUND) " World!\n");
+printf(LMS("Hello", GREEN, UNDERLINE, FOREGROUND) " World!\n");
 ```
 Should print to console, respectively:
 
 ![terminal output](docs/terminal.png)
 
 
-The `LME` macro (shorthand for `LOGMOD_ENCODE`) automatically applies the logger's color settings, while `LMES` (shortdhand for `LOGMOD_ENCODE_STATIC`) applies the specified color regardless of the logger's settings.
+The `LML` macro (shorthand for `LOGMOD_ENCODE_LOGGER`) automatically applies the logger's color settings, while `LMS` (shorthand for `LOGMOD_ENCODE_STATIC`) applies the specified color regardless of the logger's settings.
+
+LogMod also provides additional encoding macros:
+- `LME` - Shorthand for `LOGMOD_ENCODE` (basic encoding)
+- `LMT` - Shorthand for `LOGMOD_ENCODE_TOGGLE` (conditional encoding based on a boolean toggle)
 
 Available colors, styles, and visibility options:
 

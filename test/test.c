@@ -399,7 +399,7 @@ should_encode_ansi_string(void)
     logger = logmod_get_logger(&logmod, "MODULE_A");
     logmod_logger_set_color(logger, 1);
 
-    result = LME(logger, TEST_STRING, RED, BOLD, FOREGROUND);
+    result = LML(logger, TEST_STRING, RED, BOLD, FOREGROUND);
     ASSERT_STR_EQm(result, "\x1b[1;31mtest string\x1b[0m", result);
 
     PASS();
@@ -417,7 +417,7 @@ should_return_original_string_when_color_disabled(void)
     logger = logmod_get_logger(&logmod, "MODULE_A");
     logmod_logger_set_color(logger, 0);
 
-    result = LME(logger, TEST_STRING, RED, BOLD, FOREGROUND);
+    result = LML(logger, TEST_STRING, RED, BOLD, FOREGROUND);
     ASSERT_MEM_EQm(result, TEST_STRING, result, sizeof(TEST_STRING) - 1);
 
     PASS();
@@ -435,13 +435,13 @@ should_handle_different_ansi_visibilities(void)
     logger = logmod_get_logger(&logmod, "MODULE_A");
     logmod_logger_set_color(logger, 1);
 
-    result = LME(logger, TEST_STRING, GREEN, REGULAR, FOREGROUND);
+    result = LML(logger, TEST_STRING, GREEN, REGULAR, FOREGROUND);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[0;32m"));
 
-    result = LME(logger, TEST_STRING, BLUE, REGULAR, BACKGROUND);
+    result = LML(logger, TEST_STRING, BLUE, REGULAR, BACKGROUND);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[0;44m"));
 
-    result = LME(logger, TEST_STRING, RED, REGULAR, INTENSITY);
+    result = LML(logger, TEST_STRING, RED, REGULAR, INTENSITY);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[0;91m"));
 
     PASS();
@@ -459,15 +459,15 @@ should_handle_different_ansi_styles(void)
     logger = logmod_get_logger(&logmod, "MODULE_A");
     logmod_logger_set_color(logger, 1);
 
-    result = LME(logger, TEST_STRING, CYAN, REGULAR, FOREGROUND);
+    result = LML(logger, TEST_STRING, CYAN, REGULAR, FOREGROUND);
     ASSERT_NEQ(NULL, result);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[0;36m"));
 
-    result = LME(logger, TEST_STRING, CYAN, BOLD, FOREGROUND);
+    result = LML(logger, TEST_STRING, CYAN, BOLD, FOREGROUND);
     ASSERT_NEQ(NULL, result);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[1;36m"));
 
-    result = LME(logger, TEST_STRING, CYAN, UNDERLINE, FOREGROUND);
+    result = LML(logger, TEST_STRING, CYAN, UNDERLINE, FOREGROUND);
     ASSERT_NEQ(NULL, result);
     ASSERT_NEQ(NULL, strstr(result, "\x1b[4;36m"));
 

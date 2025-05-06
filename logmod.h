@@ -462,15 +462,15 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
 #define LOGMOD_STYLE(_style) __JOIN(LOGMOD_STYLE_, _style)
 
 /**
- * @brief Internal macro for ANSI color encoding
+ * @brief Encodes text with ANSI colors and styles
  *
- * @param _buf Text buffer to encode
- * @param _color Color code
- * @param _style Style code
- * @param _visibility Visibility code
+ * @param buf Text buffer to encode
+ * @param _color Color code (LOGMOD_COLOR_* macros)
+ * @param _style Style code (LOGMOD_STYLE_* macros)
+ * @param _visibility Visibility code (LOGMOD_VISIBILITY_* macros)
  */
-#define _LOGMOD_ENCODE(_buf, _color, _style, _visibility)                     \
-    "\x1b[" __STR(_style) ";" __STR(_visibility) __STR(_color) "m" _buf       \
+#define LOGMOD_ENCODE(buf, _color, _style, _visibility)                       \
+    "\x1b[" __STR(_style) ";" __STR(_visibility) __STR(_color) "m" buf        \
                                                                "\x1b[0m"
 
 /**
@@ -482,8 +482,24 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
  * @param _visibility Visibility name (e.g., FOREGROUND, BACKGROUND)
  */
 #define LOGMOD_ENCODE_STATIC(buf, _color, _style, _visibility)                \
-    _LOGMOD_ENCODE(buf, LOGMOD_COLOR_##_color, LOGMOD_STYLE_##_style,         \
-                   LOGMOD_VISIBILITY_##_visibility)
+    LOGMOD_ENCODE(buf, LOGMOD_COLOR_##_color, LOGMOD_STYLE_##_style,          \
+                  LOGMOD_VISIBILITY_##_visibility)
+
+/**
+ * @brief Dynamic encoding of text with ANSI colors (respects toggle)
+ *
+ * @param _toggle Toggle to enable or disable color encoding
+ * @param buf The text to encode
+ * @param _color Color name (e.g., RED, GREEN)
+ * @param _style Style name (e.g., BOLD, REGULAR)
+ * @param _visibility Visibility name (e.g., FOREGROUND, BACKGROUND)
+ * @return Colored text if toggle is enabled, or original text otherwise
+ */
+#define LOGMOD_ENCODE_TOGGLE(_toggle, buf, _color, _style, _visibility)       \
+    ((_toggle)                                                                \
+         ? LOGMOD_ENCODE(buf, LOGMOD_COLOR_##_color, LOGMOD_STYLE_##_style,   \
+                         LOGMOD_VISIBILITY_##_visibility)                     \
+         : buf)
 
 /**
  * @brief Dynamic encoding of text with ANSI colors (respects logger color
@@ -496,14 +512,16 @@ LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
  * @param _visibility Visibility name (e.g., FOREGROUND, BACKGROUND)
  * @return Colored text if colors enabled, or original text otherwise
  */
-#define LOGMOD_ENCODE(_logger, buf, _color, _style, _visibility)              \
-    ((_logger)->options.color                                                 \
-         ? _LOGMOD_ENCODE(buf, LOGMOD_COLOR_##_color, LOGMOD_STYLE_##_style,  \
-                          LOGMOD_VISIBILITY_##_visibility)                    \
-         : buf)
+#define LOGMOD_ENCODE_LOGGER(_logger, buf, _color, _style, _visibility)       \
+    LOGMOD_ENCODE_TOGGLE((_logger)->options.color, buf, _color, _style,       \
+                         _visibility)
 
 /** @brief Shorthand for LOGMOD_ENCODE_STATIC */
-#define LMES LOGMOD_ENCODE_STATIC
+#define LMS LOGMOD_ENCODE_STATIC
+/** @brief Shorthand for LOGMOD_ENCODE_TOGGLE */
+#define LMT LOGMOD_ENCODE_TOGGLE
+/** @brief Shorthand for LOGMOD_ENCODE_LOGGER */
+#define LML LOGMOD_ENCODE_LOGGER
 /** @brief Shorthand for LOGMOD_ENCODE */
 #define LME LOGMOD_ENCODE
 
@@ -874,21 +892,19 @@ _logmod_print(const struct logmod_logger *logger,
 {
     if (color) {
         if (0 >= fprintf(output,
-                         "\x1b[40m%02d:%02d:%02d\x1b[0m \x1b[%um%s\x1b[0m "
-                         "\x1b[33m%s:%d\x1b[0m: ",
-                         time_info->tm_hour, time_info->tm_min,
-                         time_info->tm_sec, info->label->color,
-                         info->label->name, info->filename, info->line))
+                         LME("%s", %u, LOGMOD_STYLE_REGULAR,
+                             LOGMOD_VISIBILITY_FOREGROUND)
+                             LMS(" %s:%d", YELLOW, REGULAR, FOREGROUND) ": ",
+                         info->label->color, info->label->name, info->filename,
+                         info->line))
         {
             logmod_nlog(ERROR, logger, ("Failed to write to output stream"),
                         0);
             return LOGMOD_ERRNO;
         }
     }
-    else if (0 >= fprintf(output,
-                          "%02d:%02d:%02d %s %s:%d: ", time_info->tm_hour,
-                          time_info->tm_min, time_info->tm_sec,
-                          info->label->name, info->filename, info->line))
+    else if (0 >= fprintf(output, " %s %s:%d: ", info->label->name,
+                          info->filename, info->line))
     {
         logmod_nlog(ERROR, logger, ("Failed to write to output stream"), 0);
         return LOGMOD_ERRNO;
