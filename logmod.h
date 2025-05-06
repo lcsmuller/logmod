@@ -5,6 +5,11 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/**
+ * @brief Define symbol visibility for LogMod API
+ *
+ * Define LOGMOD_STATIC to make all symbols static (for single-file inclusion)
+ */
 #ifdef LOGMOD_STATIC
 #define LOGMOD_API static
 #else
@@ -14,6 +19,15 @@ extern "C" {
 #include <stdio.h>
 #include <stdarg.h>
 
+/**
+ * @brief Format string checking attribute for printf-like functions
+ *
+ * This macro adds format string checking when supported by the compiler,
+ * helping catch format string errors at compile time.
+ *
+ * @param a Format string parameter position
+ * @param b First variadic argument position
+ */
 #if defined(__MINGW32__)                                                      \
     || (defined(__GNUC__) && __GNUC__ > 4 ? true : __GNUC_PATCHLEVEL__ >= 4)  \
     || defined(__USE_MINGW_ANSI_STDIO)
@@ -22,52 +36,80 @@ extern "C" {
 #define LOGMOD_PRINTF_LIKE(a, b)
 #endif
 
+/**
+ * @brief Default application ID for the fallback logger
+ *
+ * Can be overridden by defining this macro before including logmod.h
+ */
 #ifndef LOGMOD_FALLBACK_APPLICATION_ID
 #define LOGMOD_FALLBACK_APPLICATION_ID "APPLICATION"
 #endif /* LOGMOD_FALLBACK_APPLICATION_ID */
 
+/**
+ * @brief Default context ID for the fallback logger
+ *
+ * Can be overridden by defining this macro before including logmod.h
+ */
 #ifndef LOGMOD_FALLBACK_CONTEXT_ID
 #define LOGMOD_FALLBACK_CONTEXT_ID "GLOBAL"
 #endif /* LOGMOD_FALLBACK_CONTEXT_ID */
 
+/**
+ * @brief Log levels supported by LogMod
+ *
+ * Built-in log levels ordered by severity (lowest to highest)
+ * Custom log levels should start at LOGMOD_LEVEL_CUSTOM
+ */
 enum logmod_levels {
-    LOGMOD_LEVEL_TRACE = 0,
-    LOGMOD_LEVEL_DEBUG,
-    LOGMOD_LEVEL_INFO,
-    LOGMOD_LEVEL_WARN,
-    LOGMOD_LEVEL_ERROR,
-    LOGMOD_LEVEL_FATAL,
-    __LOGMOD_LEVEL_MAX,
+    LOGMOD_LEVEL_TRACE = 0, /**< Most detailed logging for tracing execution */
+    LOGMOD_LEVEL_DEBUG, /**< Debug information */
+    LOGMOD_LEVEL_INFO, /**< Informational messages */
+    LOGMOD_LEVEL_WARN, /**< Warning messages */
+    LOGMOD_LEVEL_ERROR, /**< Error messages */
+    LOGMOD_LEVEL_FATAL, /**< Fatal errors that cause termination */
+    __LOGMOD_LEVEL_MAX, /**< Internal marker for built-in level count */
     /** user defined log level must start with this value */
     LOGMOD_LEVEL_CUSTOM = __LOGMOD_LEVEL_MAX
 };
 
+/**
+ * @brief Error codes returned by LogMod functions
+ */
 typedef enum {
-    LOGMOD_ERRNO = -2,
-    LOGMOD_BAD_PARAMETER = -1,
-    LOGMOD_OK = 0,
-    LOGMOD_OK_CONTINUE
+    LOGMOD_ERRNO = -2, /**< System error, check errno */
+    LOGMOD_BAD_PARAMETER = -1, /**< Invalid parameter passed to function */
+    LOGMOD_OK = 0, /**< Success */
+    LOGMOD_OK_CONTINUE /**< Success, continue with default behavior */
 } logmod_err;
 
+/**
+ * @brief Configuration options for a logger
+ */
 struct logmod_options {
-    FILE *logfile;
-    int quiet;
-    int color;
-    unsigned level;
+    FILE *logfile; /**< File to write logs to, or NULL for no file output */
+    int quiet; /**< If 1, suppress console output */
+    int color; /**< If 1, enable ANSI colors on console output */
+    unsigned level; /**< Minimum level to log (suppress messages below this) */
 };
 
+/**
+ * @brief Label properties for a log level
+ */
 struct logmod_label {
-    const char *const name;
-    const unsigned color;
-    const unsigned style;
-    const int output; /* 0 = stdout, 1 = stderr */
+    const char *const name; /**< Display name of the log level */
+    const unsigned color; /**< ANSI color code for this label */
+    const unsigned style; /**< ANSI style code for this label */
+    const int output; /**< Output stream: 0 = stdout, 1 = stderr */
 };
 
+/**
+ * @brief Information about a log entry
+ */
 struct logmod_entry_info {
-    unsigned line;
-    const char *filename;
-    unsigned level;
-    const struct logmod_label *label;
+    unsigned line; /**< Source line number */
+    const char *filename; /**< Source filename */
+    unsigned level; /**< Log level */
+    const struct logmod_label *label; /**< Label for this log level */
 };
 
 /* forward declaration */
@@ -75,33 +117,67 @@ struct logmod_logger;
 struct tm;
 /**/
 
+/**
+ * @brief Lock function type for thread safety
+ *
+ * @param logger The logger instance
+ * @param should_lock 1 to acquire lock, 0 to release
+ */
 typedef void (*logmod_lock)(const struct logmod_logger *logger,
                             int should_lock);
 
+/**
+ * @brief Callback function type for custom log handling
+ *
+ * @param logger The logger instance
+ * @param info Information about the log entry
+ * @param fmt Format string
+ * @param args Variable arguments list
+ * @return LOGMOD_OK to skip default handling, LOGMOD_OK_CONTINUE to also
+ * perform default handling
+ */
 typedef logmod_err (*logmod_callback)(const struct logmod_logger *logger,
                                       const struct logmod_entry_info *info,
                                       const char *fmt,
                                       va_list args);
 
-#define LOGMOD_COLOR_BLACK   0
-#define LOGMOD_COLOR_RED     1
-#define LOGMOD_COLOR_GREEN   2
-#define LOGMOD_COLOR_YELLOW  3
-#define LOGMOD_COLOR_BLUE    4
-#define LOGMOD_COLOR_MAGENTA 5
-#define LOGMOD_COLOR_CYAN    6
-#define LOGMOD_COLOR_WHITE   7
+/**
+ * @brief ANSI color values
+ */
+#define LOGMOD_COLOR_BLACK   0 /**< Black color */
+#define LOGMOD_COLOR_RED     1 /**< Red color */
+#define LOGMOD_COLOR_GREEN   2 /**< Green color */
+#define LOGMOD_COLOR_YELLOW  3 /**< Yellow color */
+#define LOGMOD_COLOR_BLUE    4 /**< Blue color */
+#define LOGMOD_COLOR_MAGENTA 5 /**< Magenta color */
+#define LOGMOD_COLOR_CYAN    6 /**< Cyan color */
+#define LOGMOD_COLOR_WHITE   7 /**< White color */
 
-#define LOGMOD_STYLE_REGULAR       0
-#define LOGMOD_STYLE_BOLD          1
-#define LOGMOD_STYLE_UNDERLINE     4
-#define LOGMOD_STYLE_STRIKETHROUGH 9
+/**
+ * @brief ANSI text style values
+ */
+#define LOGMOD_STYLE_REGULAR       0 /**< Regular text style */
+#define LOGMOD_STYLE_BOLD          1 /**< Bold text style */
+#define LOGMOD_STYLE_UNDERLINE     4 /**< Underlined text style */
+#define LOGMOD_STYLE_STRIKETHROUGH 9 /**< Strikethrough text style */
 
-#define LOGMOD_VISIBILITY_FOREGROUND           3
-#define LOGMOD_VISIBILITY_BACKGROUND           4
-#define LOGMOD_VISIBILITY_INTENSITY            9
-#define LOGMOD_VISIBILITY_BACKGROUND_INTENSITY 10
+/**
+ * @brief ANSI text visibility mode values
+ */
+#define LOGMOD_VISIBILITY_FOREGROUND 3 /**< Foreground color */
+#define LOGMOD_VISIBILITY_BACKGROUND 4 /**< Background color */
+#define LOGMOD_VISIBILITY_INTENSITY  9 /**< Intensity (bright) foreground */
+#define LOGMOD_VISIBILITY_BACKGROUND_INTENSITY                                \
+    10 /**< Intensity (bright) background */
 
+/**
+ * @brief Internal macro for defining logger attributes
+ *
+ * Used to define both const and non-const versions of the logger structure
+ * with the same fields.
+ *
+ * @param _qualifier Qualifier to apply to mutable fields (const or empty)
+ */
 #define __LOGMOD_LOGGER_ATTRS(_qualifier)                                     \
     const char *context_id;                                                   \
     _qualifier struct logmod_options options;                                 \
@@ -112,88 +188,252 @@ typedef logmod_err (*logmod_callback)(const struct logmod_logger *logger,
     _qualifier size_t num_custom_labels
 
 #define __BLANK
+/**
+ * @brief Mutable version of the logger structure
+ *
+ * This version allows modification of the logger properties
+ */
 struct logmod_mut_logger {
     __LOGMOD_LOGGER_ATTRS(__BLANK);
 };
 #undef __BLANK
 
+/**
+ * @brief Immutable logger structure
+ *
+ * This is the public-facing version of the logger with const-qualified fields
+ */
 struct logmod_logger {
     __LOGMOD_LOGGER_ATTRS(const);
 };
 
 #undef __LOGMOD_LOGGER_ATTRS
 
+/**
+ * @brief Main logging context structure
+ *
+ * Contains the global state for a logging context
+ */
 struct logmod {
-    const char *application_id;
-    const struct logmod_logger *loggers;
-    const size_t length;
-    const size_t real_length;
-    long counter;
-    const struct logmod_options default_options;
-    logmod_lock lock;
+    const char *application_id; /**< Application identifier */
+    const struct logmod_logger *loggers; /**< Array of loggers */
+    const size_t length; /**< Current number of loggers */
+    const size_t real_length; /**< Maximum capacity of loggers array */
+    long counter; /**< Global log message counter */
+    const struct logmod_options
+        default_options; /**< Default options for new loggers */
+    logmod_lock lock; /**< Lock function for thread safety */
 };
 
+/**
+ * @brief Initialize the logging context
+ *
+ * @param logmod Pointer to the logging context structure
+ * @param application_id Application identifier string
+ * @param table Array to store loggers (must be pre-allocated)
+ * @param length Capacity of the table array
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_init(struct logmod *logmod,
                                   const char *const application_id,
                                   struct logmod_logger table[],
                                   unsigned length);
 
+/**
+ * @brief Clean up the logging context
+ *
+ * @param logmod Pointer to the logging context structure
+ * @return LOGMOD_OK on success
+ */
 LOGMOD_API logmod_err logmod_cleanup(struct logmod *logmod);
 
+/**
+ * @brief Set the lock function for thread safety
+ *
+ * @param logmod Pointer to the logging context structure
+ * @param lock Lock function to use
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_set_lock(struct logmod *logmod, logmod_lock lock);
 
+/**
+ * @brief Set default options for all new loggers
+ *
+ * @param logmod Pointer to the logging context structure
+ * @param options Default options to use for new loggers
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_set_options(struct logmod *logmod,
                                          struct logmod_options options);
 
+/**
+ * @brief Set user data for a logger
+ *
+ * @param logger Pointer to the logger
+ * @param user_data Pointer to user-defined data
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_logger_set_data(struct logmod_logger *logger,
                                              void *user_data);
 
+/**
+ * @brief Set callback function and custom labels for a logger
+ *
+ * @param logger Pointer to the logger
+ * @param custom_labels Array of custom log level labels or NULL
+ * @param num_custom_labels Number of custom labels in the array
+ * @param callback Callback function for log processing
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err
 logmod_logger_set_callback(struct logmod_logger *logger,
                            const struct logmod_label *const custom_labels,
                            const size_t num_custom_labels,
                            logmod_callback callback);
 
+/**
+ * @brief Set all options for a logger at once
+ *
+ * @param logger Pointer to the logger
+ * @param options Options structure
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_logger_set_options(struct logmod_logger *logger,
                                                 struct logmod_options options);
 
+/**
+ * @brief Set quiet mode for a logger
+ *
+ * @param logger Pointer to the logger
+ * @param quiet 1 to enable quiet mode (suppress console output), 0 to disable
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_logger_set_quiet(struct logmod_logger *logger,
                                               int quiet);
 
+/**
+ * @brief Set color mode for a logger
+ *
+ * @param logger Pointer to the logger
+ * @param color 1 to enable colored output, 0 to disable
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_logger_set_color(struct logmod_logger *logger,
                                               int color);
 
+/**
+ * @brief Set minimum log level for a logger
+ *
+ * @param logger Pointer to the logger
+ * @param level Minimum level to log (messages below this will be suppressed)
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_logger_set_level(struct logmod_logger *logger,
                                               unsigned level);
 
+/**
+ * @brief Set logfile for a logger
+ *
+ * @param logger Pointer to the logger
+ * @param logfile File pointer to write logs to, or NULL to disable
+ * @return LOGMOD_OK on success, error code on failure
+ */
 LOGMOD_API logmod_err logmod_logger_set_logfile(struct logmod_logger *logger,
                                                 FILE *logfile);
 
+/**
+ * @brief Get or create a logger by context ID
+ *
+ * @param logmod Pointer to the logging context
+ * @param context_id Context identifier string
+ * @return Pointer to the logger, or NULL if the table is full
+ */
 LOGMOD_API struct logmod_logger *logmod_get_logger(
     struct logmod *logmod, const char *const context_id);
 
+/**
+ * @brief Get the label for a specific log level
+ *
+ * @param logger Pointer to the logger
+ * @param level Log level to get the label for
+ * @return Pointer to the label structure, or NULL if invalid
+ */
 LOGMOD_API const struct logmod_label *logmod_logger_get_label(
     const struct logmod_logger *logger, const unsigned level);
 
+/**
+ * @brief Get the level value for a label name
+ *
+ * @param logger Pointer to the logger
+ * @param label Label name to look up
+ * @return Level value, or -1 if not found, -2 if parameters invalid
+ */
 LOGMOD_API long logmod_logger_get_level(const struct logmod_logger *logger,
                                         const char *const label);
 
+/**
+ * @brief Get the global message counter for a logger
+ *
+ * @param logger Pointer to the logger
+ * @return Current counter value, or -1 if logger is NULL
+ */
 LOGMOD_API long logmod_logger_get_counter(const struct logmod_logger *logger);
 
+/**
+ * @brief Log a message (C89 compatible version)
+ *
+ * @param _level Log level (without LOGMOD_LEVEL_ prefix)
+ * @param _logger Logger to use, or NULL for default
+ * @param _parenthesized_params Format and arguments in parentheses
+ * @param num_params Number of arguments in the format string
+ */
 #define logmod_nlog(_level, _logger, _parenthesized_params, num_params)       \
     _logmod_log(_logger, __LINE__, __FILE__, LOGMOD_LEVEL_##_level,           \
                 LOGMOD_SPREAD_TUPLE_##num_params _parenthesized_params)
 
 #if __STDC_VERSION__ && __STDC_VERSION__ >= 199901L
+/**
+ * @brief Internal helper macro for C99 variable arguments processing
+ *
+ * @param _level The log level
+ * @param _logger The logger instance
+ * @param _line Source line number
+ * @param _file Source file path
+ * @param _fmt Format string
+ * @param ... Additional format arguments
+ */
 #define _logmod_log_permissive(_level, _logger, _line, _file, _fmt, ...)      \
     _logmod_log(_logger, _line, _file, _level, _fmt "%s", __VA_ARGS__)
+
+/**
+ * @brief Log a message with specified level (C99 version with variadic macro
+ * support)
+ *
+ * @param _level Log level (e.g., INFO, DEBUG, ERROR)
+ * @param _logger The logger instance or NULL for default logger
+ * @param ... Format string followed by format arguments
+ */
 #define logmod_log(_level, _logger, ...)                                      \
     _logmod_log_permissive(LOGMOD_LEVEL_##_level, _logger, __LINE__,          \
                            __FILE__, __VA_ARGS__, "")
 #else
+/**
+ * @brief Alias to logmod_nlog for C89 compatibility
+ */
 #define logmod_log logmod_nlog
 #endif /* __STDC_VERSION__ */
 
+/**
+ * @brief Internal logging implementation function
+ *
+ * @param logger The logger instance
+ * @param line Source line number
+ * @param filename Source file path
+ * @param level Log level
+ * @param fmt Format string
+ * @param ... Format arguments
+ * @return logmod_err LOGMOD_OK on success, or error code on failure
+ */
 LOGMOD_API logmod_err _logmod_log(const struct logmod_logger *logger,
                                   const unsigned line,
                                   const char *const filename,
