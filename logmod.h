@@ -107,11 +107,13 @@ struct logmod_label {
 /**
  * @brief Information about a log entry
  */
-struct logmod_entry_info {
-    unsigned line; /**< Source line number */
-    const char *filename; /**< Source filename */
-    unsigned level; /**< Log level */
-    const struct logmod_label *label; /**< Label for this log level */
+struct logmod_info {
+    const unsigned line; /**< Source line number */
+    const char *const filename; /**< Source filename */
+    const unsigned level; /**< Log level */
+    const struct logmod_label *const label; /**< Label for this log level */
+    const struct tm
+        *const time_info; /**< Time for when entry has been triggered */
 };
 
 /* forward declaration */
@@ -139,7 +141,7 @@ typedef void (*logmod_lock)(const struct logmod_logger *logger,
  * perform default handling
  */
 typedef logmod_err (*logmod_callback)(const struct logmod_logger *logger,
-                                      const struct logmod_entry_info *info,
+                                      const struct logmod_info *info,
                                       const char *fmt,
                                       va_list args);
 
@@ -910,8 +912,7 @@ logmod_get_logger(struct logmod *logmod, const char *const context_id)
 
 static logmod_err
 _logmod_print(const struct logmod_logger *logger,
-              const struct tm *time_info,
-              const struct logmod_entry_info *info,
+              const struct logmod_info *info,
               const char *fmt,
               va_list args,
               const int color,
@@ -922,7 +923,8 @@ _logmod_print(const struct logmod_logger *logger,
 
     if (0 >= fprintf(output,
                      LMT(color, "%02d:%02d:%02d", BLACK, REGULAR, BACKGROUND),
-                     time_info->tm_hour, time_info->tm_min, time_info->tm_sec))
+                     info->time_info->tm_hour, info->time_info->tm_min,
+                     info->time_info->tm_sec))
     {
         logmod_nlog(ERROR, logger, ("Failed to write to output stream"), 0);
         return LOGMOD_ERRNO;
@@ -1011,6 +1013,33 @@ static struct logmod g_logmod = {
     _logmod_lock_noop,
 };
 
+static struct logmod_info
+_logmod_info_populate(const struct logmod_logger *logger,
+                      const unsigned line,
+                      const char *const filename,
+                      const unsigned level)
+{
+    const struct logmod *logmod = LOGMOD_FROM_LOGGER(logger);
+    const time_t time_raw = time(NULL);
+    struct logmod_info info;
+    unsigned *mut_line = (unsigned *)&info.line;
+    const char **mut_filename = (const char **)&info.filename;
+    unsigned *mut_level = (unsigned *)&info.level;
+    const struct logmod_label **mut_label =
+        (const struct logmod_label **)&info.label;
+    const struct tm **mut_time_info = (const struct tm **)&info.time_info;
+
+    *mut_line = line;
+    *mut_filename = filename;
+    *mut_level = level;
+    *mut_label = logmod_logger_get_label(logger, level);
+    logmod->lock(logger, 1);
+    *mut_time_info = localtime(&time_raw);
+    logmod->lock(logger, 0);
+
+    return info;
+}
+
 LOGMOD_API logmod_err
 _logmod_log(const struct logmod_logger *logger,
             const unsigned line,
@@ -1019,63 +1048,47 @@ _logmod_log(const struct logmod_logger *logger,
             const char *fmt,
             ...)
 {
-    struct logmod *logmod = logger ? LOGMOD_FROM_LOGGER(logger)
-                                   : ((logger = &g_loggers[0]), &g_logmod);
-    const struct logmod_label *const label =
-        logmod_logger_get_label(logger, level);
+    struct logmod *logmod =
+        LOGMOD_FROM_LOGGER(!logger ? (logger = &g_loggers[0]) : logger);
+    const struct logmod_info info =
+        _logmod_info_populate(logger, line, filename, level);
     logmod_err code = LOGMOD_OK_CONTINUE;
-    struct logmod_entry_info info;
     va_list args;
-
-    info.line = line;
-    info.filename = filename;
-    info.level = level;
-    info.label = label;
 
     if (logger->callback) {
         va_start(args, fmt);
         if ((code = logger->callback(logger, &info, fmt, args)) < LOGMOD_OK) {
-            return va_end(args), code;
+            goto _end;
         }
         va_end(args);
     }
 
     if (level >= logger->options.level && code == LOGMOD_OK_CONTINUE) {
-        time_t time_raw;
-        const struct tm *time_info;
-
-        logmod->lock(logger, 1);
-        time_raw = time(NULL);
-        time_info = localtime(&time_raw);
-        logmod->lock(logger, 0);
-
         if (!logger->options.quiet || level == LOGMOD_LEVEL_FATAL) {
             va_start(args, fmt);
-            if ((code = _logmod_print(logger, time_info, &info, fmt, args,
-                                      logger->options.color,
-                                      label->output == 0 ? stdout : stderr))
+            if ((code = _logmod_print(
+                     logger, &info, fmt, args, logger->options.color,
+                     info.label->output == 0 ? stdout : stderr))
                 != LOGMOD_OK)
             {
-                return va_end(args), code;
+                goto _end;
             }
             va_end(args);
         }
+
         if (logger->options.logfile) {
             va_start(args, fmt);
-            if ((code = _logmod_print(logger, time_info, &info, fmt, args, 0,
-                                      logger->options.logfile))
-                != LOGMOD_OK)
-            {
-                return va_end(args), code;
-            }
-            va_end(args);
+            code = _logmod_print(logger, &info, fmt, args, 0,
+                                 logger->options.logfile);
         }
     }
 
+_end:
     logmod->lock(logger, 1);
     ++logmod->counter;
     logmod->lock(logger, 0);
 
+    va_end(args);
     return code;
 }
 

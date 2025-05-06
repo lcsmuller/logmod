@@ -306,7 +306,7 @@ You can set a custom callback for advanced logging scenarios:
 ```c
 logmod_err my_callback(
     const struct logmod_logger *logger,
-    const struct logmod_entry_info *info,
+    const struct logmod_info *info,
     const char *fmt,
     va_list args) 
 {
