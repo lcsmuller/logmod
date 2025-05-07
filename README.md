@@ -37,6 +37,9 @@ LogMod is a lightweight, flexible logging library for C applications that suppor
   - [logmod_logger_set_level](#logmod_logger_set_level)
   - [logmod_set_options](#logmod_set_options)
   - [logmod_toggle_logger](#logmod_toggle_logger)
+  - [logmod_logger_set_time](#logmod_logger_set_time)
+  - [logmod_logger_set_counter](#logmod_logger_set_counter)
+- [Examples](#examples)
 - [License](#license)
 
 ## Features
@@ -690,6 +693,78 @@ logmod_toggle_logger(&logmod, "NETWORK");
 ```
 
 Disabled loggers will skip all logging operations and immediately return `LOGMOD_OK_SKIPPED`. This is useful for temporarily silencing specific logging contexts without removing the logging calls from your code.
+
+### `logmod_logger_set_time`
+
+```c
+logmod_err logmod_logger_set_time(struct logmod_logger *logger, int show_time);
+```
+
+Controls whether timestamp information is displayed in log messages.
+
+- `logger`: Pointer to the logger structure.
+- `show_time`: Set to 1 to show timestamps in log messages, 0 to hide them.
+Returns `LOGMOD_OK` on success, error code on failure.
+
+```c
+// Examples:
+// Show timestamps in log messages (default)
+logmod_logger_set_time(logger, 1);
+
+// Hide timestamps from log messages
+logmod_logger_set_time(logger, 0);
+```
+
+Timestamps are displayed at the beginning of each log message by default. Hiding them can make logs more compact, which might be useful in some contexts like debug output or when external systems add their own timestamps.
+
+### `logmod_logger_set_counter`
+
+```c
+logmod_err logmod_logger_set_counter(struct logmod_logger *logger, int show_counter);
+```
+
+Controls whether message counter is displayed in log messages.
+
+- `logger`: Pointer to the logger structure.
+- `show_counter`: Set to 1 to show message counter in log messages, 0 to hide it.
+Returns `LOGMOD_OK` on success, error code on failure.
+
+```c
+// Examples:
+// Show message counter in log messages
+logmod_logger_set_counter(logger, 1);
+
+// Hide message counter from log messages (default)
+logmod_logger_set_counter(logger, 0);
+```
+
+The message counter is a global counter that increments with each log message across all loggers in the same logmod context. Displaying it can be useful for tracking message sequence or correlating log entries.
+
+## Examples
+
+The `examples/` directory contains example programs demonstrating how to use LogMod in different scenarios:
+
+### Basic Example
+
+The basic example (`examples/basic.c`) demonstrates the core functionality of LogMod:
+
+- Initializing the logging context
+- Creating multiple loggers with different contexts
+- Using different log levels
+- Configuring logger options (colors, file output, etc.)
+- Using custom log levels
+- Implementing thread safety with a mutex
+- Using a custom callback to intercept log messages
+
+To build and run the example:
+
+```bash
+cd examples
+make
+./basic
+```
+
+This will generate output in both the console and in `example.log`. Examine the code to see how different LogMod features are used.
 
 ## License
 

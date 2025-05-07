@@ -94,6 +94,8 @@ struct logmod_options {
     int hide_context_id; /**< If 1, suppress context ID in log messages */
     int show_application_id; /**< If 1, show application ID in log messages */
     unsigned level; /**< Minimum level to log (suppress messages below this) */
+    int suppress_time; /**< If 1, suppress time in log messages */
+    int hide_counter; /**< If 1, hide message counter in log messages */
 };
 
 /**
@@ -382,6 +384,26 @@ LOGMOD_API logmod_err logmod_logger_set_level(struct logmod_logger *logger,
  */
 LOGMOD_API logmod_err logmod_logger_set_logfile(struct logmod_logger *logger,
                                                 FILE *logfile);
+
+/**
+ * @brief Set time display for a logger
+ *
+ * @param logger Pointer to the logger
+ * @param show_time 0 to suppress time in log messages, 1 to show it
+ * @return LOGMOD_OK on success, error code on failure
+ */
+LOGMOD_API logmod_err logmod_logger_set_time(struct logmod_logger *logger,
+                                             int show_time);
+
+/**
+ * @brief Set counter display for a logger
+ *
+ * @param logger Pointer to the logger
+ * @param show_counter 0 to hide counter in log messages, 1 to show it
+ * @return LOGMOD_OK on success, error code on failure
+ */
+LOGMOD_API logmod_err logmod_logger_set_counter(struct logmod_logger *logger,
+                                                int show_counter);
 
 /**
  * @brief Get or create a logger by context ID
@@ -789,6 +811,24 @@ logmod_logger_set_logfile(struct logmod_logger *logger, FILE *logfile)
     struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
     LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->options.logfile = logfile;
+    return LOGMOD_OK;
+}
+
+LOGMOD_API logmod_err
+logmod_logger_set_time(struct logmod_logger *logger, int show_time)
+{
+    struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
+    mut_logger->options.suppress_time = !show_time;
+    return LOGMOD_OK;
+}
+
+LOGMOD_API logmod_err
+logmod_logger_set_counter(struct logmod_logger *logger, int show_counter)
+{
+    struct logmod_mut_logger *mut_logger = (struct logmod_mut_logger *)logger;
+    LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
+    mut_logger->options.hide_counter = !show_counter;
     return LOGMOD_OK;
 }
 
