@@ -18,6 +18,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <time.h>
 
 /**
  * @brief Format string checking attribute for printf-like functions
@@ -130,8 +131,7 @@ struct logmod_info {
     const char *const filename; /**< Source filename */
     const unsigned level; /**< Log level */
     const struct logmod_label *const label; /**< Label for this log level */
-    const struct tm
-        *const time_info; /**< Time for when entry has been triggered */
+    const struct tm time; /**< Time for when entry has been triggered */
 };
 
 /* forward declaration */
@@ -205,7 +205,7 @@ typedef logmod_err (*logmod_callback)(const struct logmod_logger *logger,
     _qualifier struct logmod_options options;                                 \
     const long *counter;                                                      \
     _qualifier logmod_callback callback;                                      \
-    _qualifier void *user_data;                                               \
+    void *user_data;                                                          \
     const struct logmod_label *_qualifier custom_labels;                      \
     _qualifier size_t num_custom_labels;                                      \
     _qualifier int disabled
@@ -719,11 +719,8 @@ logmod_set_options(struct logmod *logmod, struct logmod_options options)
 LOGMOD_API logmod_err
 logmod_toggle_logger(struct logmod *logmod, const char *const context_id)
 {
-    struct logmod_mut_logger *mut_logger;
-    logmod->lock(NULL, 1);
-    mut_logger =
+    struct logmod_mut_logger *mut_logger =
         (struct logmod_mut_logger *)logmod_get_logger(logmod, context_id);
-    logmod->lock(NULL, 0);
     LOGMOD_EXPECT(mut_logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->disabled = !mut_logger->disabled;
     return LOGMOD_OK;
@@ -760,7 +757,6 @@ logmod_logger_set_callback(struct logmod_logger *logger,
     LOGMOD_EXPECT(logger != NULL, LOGMOD_BAD_PARAMETER);
     mut_logger->callback = callback;
     if (custom_labels != NULL) {
-        LOGMOD_EXPECT(callback != NULL, LOGMOD_BAD_PARAMETER);
         LOGMOD_EXPECT(num_custom_labels > 0, LOGMOD_BAD_PARAMETER);
         mut_logger->custom_labels = custom_labels;
         mut_logger->num_custom_labels = num_custom_labels;
@@ -836,6 +832,9 @@ LOGMOD_API const struct logmod_label *
 logmod_logger_get_label(const struct logmod_logger *logger,
                         const unsigned level)
 {
+    static const struct logmod_label unknown_label = {
+        "#UNKNOWN LABEL!!", LOGMOD_LABEL_COLOR(YELLOW, REGULAR, BACKGROUND), 1
+    };
     if (level < LOGMOD_LEVEL_CUSTOM) {
         return &default_labels[level];
     }
@@ -844,7 +843,11 @@ logmod_logger_get_label(const struct logmod_logger *logger,
     {
         return &logger->custom_labels[level - LOGMOD_LEVEL_CUSTOM];
     }
-    return NULL;
+    logmod_nlog(ERROR, NULL,
+                ("Invalid log level %lu for logger %s", level,
+                 logger ? logger->context_id : "NULL"),
+                2);
+    return &unknown_label;
 }
 
 LOGMOD_API long
@@ -924,8 +927,8 @@ _logmod_print(const struct logmod_logger *logger,
     LOGMOD_EXPECT(
         fprintf(output,
                 LMT(color, "%02d:%02d:%02d", BLACK, REGULAR, BACKGROUND),
-                info->time_info->tm_hour, info->time_info->tm_min,
-                info->time_info->tm_sec)
+                info->time.tm_hour, info->time.tm_min,
+                info->time.tm_sec)
             >= 0,
         LOGMOD_ERRNO);
     if (show_apid) {
@@ -972,7 +975,7 @@ static struct logmod g_logmod;
 static struct logmod_logger g_loggers[] = {
     {
         LOGMOD_FALLBACK_CONTEXT_ID,
-        { NULL, 0, 1, LOGMOD_LEVEL_TRACE },
+        { NULL, 0, 1 },
         &g_logmod.counter,
         NULL,
         NULL,
@@ -987,7 +990,7 @@ static struct logmod g_logmod = {
     sizeof(g_loggers) / sizeof *g_loggers,
     sizeof(g_loggers) / sizeof *g_loggers,
     0,
-    { NULL, 0, 1, LOGMOD_LEVEL_TRACE },
+    { NULL, 0, 1 },
     _logmod_lock_noop,
 };
 
@@ -1005,13 +1008,13 @@ _logmod_info_populate(const struct logmod_logger *logger,
     unsigned *mut_level = (unsigned *)&info.level;
     const struct logmod_label **mut_label =
         (const struct logmod_label **)&info.label;
-    const struct tm **mut_time_info = (const struct tm **)&info.time_info;
+    struct tm *mut_time = (struct tm *)&info.time;
     *mut_line = line;
     *mut_filename = filename;
     *mut_level = level;
     *mut_label = logmod_logger_get_label(logger, level);
     logmod->lock(logger, 1);
-    *mut_time_info = localtime(&time_raw);
+    *mut_time = *localtime(&time_raw);
     logmod->lock(logger, 0);
     return info;
 }
