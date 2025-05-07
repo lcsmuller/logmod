@@ -922,43 +922,57 @@ _logmod_print(const struct logmod_logger *logger,
               const int color,
               FILE *output)
 {
-    const int show_apid = logger->options.show_application_id,
-              show_ctid = !logger->options.hide_context_id;
-    LOGMOD_EXPECT(
-        fprintf(output,
-                LMT(color, "%02d:%02d:%02d", BLACK, REGULAR, BACKGROUND),
-                info->time.tm_hour, info->time.tm_min,
-                info->time.tm_sec)
-            >= 0,
-        LOGMOD_ERRNO);
-    if (show_apid) {
+    if (!logger->options.hide_counter) {
+        LOGMOD_EXPECT(fprintf(output,
+                              LMT(color, "%-3ld ", WHITE, BOLD, FOREGROUND),
+                              logmod_logger_get_counter(logger))
+                          >= 0,
+                      LOGMOD_ERRNO);
+    }
+    if (!logger->options.suppress_time) {
+        LOGMOD_EXPECT(
+            fprintf(output,
+                    LMT(color, "%02d:%02d:%02d", WHITE, UNDERLINE, FOREGROUND),
+                    info->time.tm_hour, info->time.tm_min, info->time.tm_sec)
+                >= 0,
+            LOGMOD_ERRNO);
+        LOGMOD_EXPECT(putc(' ', output) != EOF, LOGMOD_ERRNO);
+    }
+    if (logger->options.show_application_id) {
         const struct logmod *logmod = LOGMOD_FROM_LOGGER(logger);
         LOGMOD_EXPECT(fprintf(output,
-                              LMT(color, " %s »", WHITE, REGULAR, FOREGROUND),
+                              LMT(color, "%s", BLACK, BOLD, FOREGROUND),
                               logmod->application_id)
                           >= 0,
                       LOGMOD_ERRNO);
+        LOGMOD_EXPECT(fputs(LMT(color, " » ", BLACK, BOLD, FOREGROUND), output)
+                          != EOF,
+                      LOGMOD_ERRNO);
     }
-    if (show_ctid) {
+    if (!logger->options.hide_context_id) {
         LOGMOD_EXPECT(fprintf(output,
-                              LMT(color, " %s »", WHITE, REGULAR, FOREGROUND),
+                              LMT(color, "%s", WHITE, BOLD, FOREGROUND),
                               logger->context_id)
                           >= 0,
                       LOGMOD_ERRNO);
+        LOGMOD_EXPECT(fputs(LMT(color, " » ", WHITE, BOLD, FOREGROUND), output)
+                          != EOF,
+                      LOGMOD_ERRNO);
     }
     if (color) {
-        LOGMOD_EXPECT(
-            fprintf(output,
-                    LME(" %s", "%s", LOGMOD_STYLE_REGULAR,
-                        LOGMOD_VISIBILITY_FOREGROUND)
-                        LMS(" %s:%d", YELLOW, REGULAR, FOREGROUND) ": ",
-                    info->label->color, info->label->name, info->filename,
-                    info->line)
-                >= 0,
-            LOGMOD_ERRNO);
+        LOGMOD_EXPECT(fprintf(output,
+                              LME("%s", "%s", "%s", "%s") " " LMS(
+                                  "%s", YELLOW, REGULAR,
+                                  FOREGROUND) LMS(":", WHITE, BOLD, FOREGROUND)
+                                  LMS("%d", WHITE, REGULAR, FOREGROUND) ": ",
+                              info->label->style, info->label->visibility,
+                              info->label->color, info->label->name,
+                              info->filename, info->line)
+                          >= 0,
+                      LOGMOD_ERRNO);
     }
     else {
-        LOGMOD_EXPECT(fprintf(output, " %s %s:%d: ", info->label->name,
+        LOGMOD_EXPECT(fprintf(output, "%s %s:%d: ", info->label->name,
                               info->filename, info->line)
                           >= 0,
                       LOGMOD_ERRNO);
