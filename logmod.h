@@ -842,7 +842,7 @@ logmod_logger_get_label(const struct logmod_logger *logger,
         return &logger->custom_labels[level - LOGMOD_LEVEL_CUSTOM];
     }
     logmod_nlog(ERROR, NULL,
-                ("Invalid log level %lu for logger %s", level,
+                ("Invalid log level %u for logger %s", level,
                  logger ? logger->context_id : "NULL"),
                 2);
     return &unknown_label;
