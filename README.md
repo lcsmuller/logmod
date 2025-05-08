@@ -165,11 +165,11 @@ enum {
     LOGMOD_LEVEL_TESTMODE
 };
 
-// Define custom log label properties (name, color, style, output stream)
+// Define custom log label properties (name, style, visibility, color, output stream)
 static const struct logmod_label custom_labels[] = {
-    // Name, Color code, Style code, Output stream (0=stdout, 1=stderr)
-    { "HTTP", LOGMOD_LABEL_COLOR(BLUE, REGULAR, FOREGROUND), 0 },
-    { "TEST", LOGMOD_LABEL_COLOR(MAGENTA, BOLD, INTENSITY),  0 }
+    // Name, Style code, Visibility code, Color code, (0=stdout, 1=stderr)
+    { "HTTP", LOGMOD_LABEL_COLOR(REGULAR, FOREGROUND, BLUE), 0 },
+    { "TEST", LOGMOD_LABEL_COLOR(BOLD, INTENSITY, MAGENTA),  0 }
 };
 
 // Register custom labels with your logger
@@ -218,14 +218,14 @@ LogMod provides macros for ANSI color formatting of arbitrary text. These macros
 `LML` (shorthand for `LOGMOD_ENCODE_LOGGER`) automatically respects the logger's color settings. Colors are only applied if the logger has colors enabled.
 
 ```c
-// Syntax: LML(logger, text, color, style, visibility)
+// Syntax: LML(logger, style, visibility, color, text)
 // Example:
 logmod_logger_set_color(logger, 1); // Enable color for this logger
-printf("%s World!\n", LML(logger, "Hello", RED, BOLD, FOREGROUND));
+printf("%s World!\n", LML(logger, BOLD, FOREGROUND, RED, "Hello"));
 
 // If colors are disabled in the logger, no colors will be applied
 logmod_logger_set_color(logger, 0);
-printf("%s World!\n", LML(logger, "Hello", RED, BOLD, FOREGROUND)); // Outputs without color
+printf("%s World!\n", LML(logger, BOLD, FOREGROUND, RED, "Hello")); // Outputs without color
 ```
 
 ##### LMS - Static Color Formatting
@@ -233,9 +233,9 @@ printf("%s World!\n", LML(logger, "Hello", RED, BOLD, FOREGROUND)); // Outputs w
 `LMS` (shorthand for `LOGMOD_ENCODE_STATIC`) always applies the specified color regardless of any logger settings. This is useful for consistent colored output independent of logging configuration.
 
 ```c
-// Syntax: LMS(text, color, style, visibility)
+// Syntax: LMS(style, visibility, color, text)
 // Example:
-printf(LMS("Hello", GREEN, UNDERLINE, FOREGROUND) " World!\n");
+printf(LMS(UNDERLINE, FOREGROUND, GREEN, "Hello") " World!\n");
 
 // Always outputs colored text, regardless of any logger settings
 ```
@@ -245,13 +245,13 @@ printf(LMS("Hello", GREEN, UNDERLINE, FOREGROUND) " World!\n");
 `LME` (shorthand for `LOGMOD_ENCODE`) provides the most flexibility by allowing dynamic settings for all fields. This macro accepts raw ANSI color codes without the enum prefix.
 
 ```c
-// Syntax: LME(text, color_code, style_code, visibility_code)
+// Syntax: LME(style_code, visibility_code, color_code, text)
 // Example:
-printf(LME("%s", LOGMOD_COLOR_BLUE, LOGMOD_STYLE_REGULAR, LOGMOD_VISIBILITY_BACKGROUND) "World!", "Hello");
+printf(LME(LOGMOD_STYLE_REGULAR, LOGMOD_VISIBILITY_BACKGROUND, LOGMOD_COLOR_BLUE, "%s") "World!", "Hello");
 
 // For dynamic values, you can pass variables containing the codes
 const char* my_color = LOGMOD_COLOR_RED;
-printf(LME("Warning", my_color, LOGMOD_STYLE_BOLD, LOGMOD_VISIBILITY_FOREGROUND) "!\n");
+printf(LME(LOGMOD_STYLE_BOLD, LOGMOD_VISIBILITY_FOREGROUND, "%s", "Warning") "!\n", my_color);
 ```
 
 ##### LMT - Toggle-Based Color Formatting
@@ -259,31 +259,31 @@ printf(LME("Warning", my_color, LOGMOD_STYLE_BOLD, LOGMOD_VISIBILITY_FOREGROUND)
 `LMT` (shorthand for `LOGMOD_ENCODE_TOGGLE`) provides conditional color formatting based on a boolean toggle. Colors are only applied if the toggle is true.
 
 ```c
-// Syntax: LMT(toggle, text, color, style, visibility)
+// Syntax: LMT(toggle, style, visibility, color, text)
 // Example:
 int enable_colors = 1;
-printf("%s World!\n", LMT(enable_colors, "Hello", MAGENTA, UNDERLINE, BACKGROUND_INTENSITY));
+printf("%s World!\n", LMT(enable_colors, UNDERLINE, BACKGROUND_INTENSITY, MAGENTA, "Hello"));
 
 // Disable colors with the toggle
 enable_colors = 0;
-printf("%s World!\n", LMT(enable_colors, "Hello", MAGENTA, UNDERLINE, BACKGROUND_INTENSITY)); // Outputs without color
+printf("%s World!\n", LMT(enable_colors, UNDERLINE, BACKGROUND_INTENSITY, MAGENTA, "Hello")); // Outputs without color
 ```
 
 When properly configured, these macros should print colored text to the console like this:
 
 ![terminal output](docs/terminal.png)
 
-Available colors, styles, and visibility options:
+Available styles, visibility and color options:
 
 ```c
-// Colors (used without the LOGMOD_COLOR_ prefix)
-BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE
-
 // Styles (used without the LOGMOD_STYLE_ prefix)
 REGULAR, BOLD, UNDERLINE, STRIKETHROUGH
 
 // Visibility (used without the LOGMOD_VISIBILITY_ prefix)
 FOREGROUND, BACKGROUND, INTENSITY, BACKGROUND_INTENSITY
+
+// Colors (used without the LOGMOD_COLOR_ prefix)
+BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE
 ```
 
 The color formatting macros automatically add the necessary prefixes, so you can use the enum values directly without their prefixes.
